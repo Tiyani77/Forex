@@ -1,122 +1,280 @@
-"""Server-side Supabase REST prediction storage.
 
-Keep SUPABASE_SERVICE_ROLE_KEY in Streamlit Secrets, never in source control.
-This module must only be called from trusted server-side code.
 """
-from urllib.parse import urlsplit
+Forex Intelligence V3.3
+Supabase Prediction Storage
+
+Server-side only.
+Never expose Supabase secret keys in GitHub.
+"""
 
 import requests
 import streamlit as st
+from urllib.parse import urlsplit, urlunsplit
 
 
 TABLE = "forex_predictions"
 
 
 def config():
+    """
+    Read Supabase credentials from Streamlit Secrets.
+
+    Returns (base_url, api_key) or None.
+    Compatible with existing app.py.
+    """
     try:
-        url = str(st.secrets["SUPABASE_URL"]).strip().rstrip("/")
-        key = str(st.secrets["SUPABASE_SERVICE_ROLE_KEY"]).strip()
-    except (KeyError, FileNotFoundError):
+        raw_url = str(
+            st.secrets.get("SUPABASE_URL", "")
+        ).strip()
+
+        api_key = str(
+            st.secrets.get(
+                "SUPABASE_SERVICE_ROLE_KEY", ""
+            )
+        ).strip()
+
+        if not raw_url or not api_key:
+            return None
+
+        # Normalize accidental duplicate scheme.
+        while raw_url.startswith("https://https://"):
+            raw_url = raw_url.replace(
+                "https://https://",
+                "https://",
+                1
+            )
+
+        raw_url = raw_url.rstrip("/")
+
+        # Remove REST endpoint suffix if supplied.
+        if raw_url.endswith("/rest/v1"):
+            raw_url = raw_url[:-8]
+
+        parts = urlsplit(raw_url)
+
+        if (
+            parts.scheme != "https"
+            or not parts.hostname
+            or not parts.hostname.endswith(".supabase.co")
+            or parts.path not in ("", "/")
+        ):
+            return None
+
+        base_url = urlunsplit((
+            parts.scheme,
+            parts.netloc,
+            "",
+            "",
+            ""
+        )).rstrip("/")
+
+        return base_url, api_key
+
+    except Exception:
         return None
 
-    parsed = urlsplit(url)
-    if (parsed.scheme != "https" or not parsed.hostname
-            or not parsed.hostname.endswith(".supabase.co")
-            or parsed.path not in ("", "/")
-            or parsed.query or parsed.fragment or not key):
-        raise RuntimeError(
-            "Invalid SUPABASE_URL. Use the project base URL ending in .supabase.co "
-            "without /rest/v1."
-        )
-    return url, key
 
-
-def _headers(key):
+def _headers(api_key, method="GET"):
+    """
+    Use the appropriate headers for Supabase keys.
+    """
     headers = {
-        "apikey": key,
+        "apikey": api_key,
         "Content-Type": "application/json",
         "Accept": "application/json",
-        "Prefer": "return=representation",
-        "Accept-Profile": "public",
-        "Content-Profile": "public",
     }
-    # New sb_secret_* keys are API gateway keys, not JWT bearer tokens.
-    # Legacy service_role keys are JWTs and can be used as Bearer tokens.
-    if not key.startswith("sb_secret_"):
-        headers["Authorization"] = f"Bearer {key}"
+
+    # Legacy JWT keys can be used as bearer tokens.
+    if not api_key.startswith("sb_secret_"):
+        headers["Authorization"] = (
+            f"Bearer {api_key}"
+        )
+
+    if method in ("POST", "PATCH"):
+        headers["Prefer"] = "return=representation"
+
     return headers
 
 
-def _safe_error(response):
-    status = response.status_code
-    code = None
-    try:
-        body = response.json()
-        if isinstance(body, dict):
-            code = body.get("code")
-    except ValueError:
-        pass
+def _call(
+    method,
+    path,
+    *,
+    params=None,
+    payload=None
+):
+    """
+    Make a Supabase REST API request.
+    """
+    settings = config()
 
-    if status == 404 and code in ("PGRST205", "PGRST202"):
-        return (
-            f"Supabase HTTP 404 ({code}): REST schema cache cannot find the table. "
-            "Verify Data API > Exposed tables includes public.forex_predictions, "
-            "then refresh the schema cache."
+    if not settings:
+        raise RuntimeError(
+            "Supabase configuration is missing or invalid. "
+            "Check SUPABASE_URL and "
+            "SUPABASE_SERVICE_ROLE_KEY "
+            "in Streamlit Secrets."
         )
-    if status == 404:
-        return (
-            "Supabase HTTP 404: endpoint not found. Check the project URL, "
-            "Data API exposure, and that the Streamlit secrets point to the same project."
-        )
-    if status in (401, 403):
-        return (
-            f"Supabase HTTP {status}: authentication or permissions rejected. "
-            "Check the server-side secret key and database access policies."
-        )
-    return f"Supabase request failed (HTTP {status}, code {code or 'unknown'})."
 
+    base_url, api_key = settings
 
-def _call(method, path, *, params=None, payload=None):
-    cfg = config()
-    if cfg is None:
-        raise RuntimeError("Supabase is not configured in Streamlit Secrets.")
-    url, key = cfg
+    endpoint = (
+        f"{base_url}/rest/v1/{path.lstrip('/')}"
+    )
+
     try:
         response = requests.request(
-            method,
-            f"{url}/rest/v1/{path}",
-            headers=_headers(key),
+            method=method,
+            url=endpoint,
+            headers=_headers(api_key, method),
             params=params,
             json=payload,
-            timeout=20,
+            timeout=25
         )
-    except requests.RequestException as exc:
-        # Do not expose a raw exception: it may contain sensitive URL parameters.
+
+    except requests.exceptions.Timeout:
         raise RuntimeError(
-            "Could not reach Supabase. Check network access and the project URL."
+            "Supabase connection timed out. "
+            "Please try again."
         ) from None
+
+    except requests.exceptions.ConnectionError:
+        raise RuntimeError(
+            "Cannot connect to Supabase. "
+            "Check the project URL and network."
+        ) from None
+
+    except requests.exceptions.RequestException:
+        raise RuntimeError(
+            "A Supabase network request failed."
+        ) from None
+
     if not response.ok:
-        raise RuntimeError(_safe_error(response))
-    return response.json() if response.content else []
+        status = response.status_code
+
+        # Safe structured error code only.
+        error_code = ""
+        try:
+            error_code = str(
+                response.json().get("code", "")
+            )
+        except (ValueError, AttributeError):
+            pass
+
+        if status == 401:
+            message = (
+                "Supabase authentication failed. "
+                "Check that your secret key belongs "
+                "to the correct project."
+            )
+
+        elif status == 403:
+            message = (
+                "Supabase access denied. "
+                "Check table privileges and "
+                "Row Level Security."
+            )
+
+        elif status == 404:
+            message = (
+                "Supabase REST resource not found. "
+                "Check the project URL and confirm "
+                "forex_predictions is exposed "
+                "through the Data API."
+            )
+
+        else:
+            message = (
+                f"Supabase request failed "
+                f"(HTTP {status})."
+            )
+
+        if error_code:
+            message += f" Error code: {error_code}"
+
+        raise RuntimeError(message)
+
+    if not response.content:
+        return []
+
+    try:
+        return response.json()
+    except ValueError:
+        return []
 
 
 def test_connection():
-    """Actually query the table; config() alone does not prove connectivity."""
-    _call("GET", TABLE, params={"select": "id", "limit": "1"})
-    return True
+    """
+    Actually query the table to verify connectivity.
+    """
+    try:
+        _call(
+            "GET",
+            TABLE,
+            params={
+                "select": "id",
+                "limit": "1"
+            }
+        )
+        return True, "Supabase connected successfully."
+
+    except Exception as exc:
+        return False, str(exc)
 
 
 def save_prediction(record):
-    return _call("POST", TABLE, payload=record)
+    """
+    Save a new forward prediction.
+    """
+    if not isinstance(record, dict):
+        raise ValueError(
+            "Prediction must be a dictionary."
+        )
+
+    return _call(
+        "POST",
+        TABLE,
+        payload=record
+    )
 
 
 def list_predictions(limit=500):
-    return _call("GET", TABLE, params={
-        "select": "*", "order": "recorded_at.desc", "limit": str(limit)
-    })
+    """
+    Retrieve saved predictions, newest first.
+    """
+    limit = max(1, min(int(limit), 1000))
+
+    return _call(
+        "GET",
+        TABLE,
+        params={
+            "select": "*",
+            "order": "recorded_at.desc",
+            "limit": str(limit)
+        }
+    )
 
 
 def complete_prediction(record_id, result):
-    return _call("PATCH", TABLE, params={
-        "id": "eq." + str(record_id), "status": "eq.pending"
-    }, payload=result)
+    """
+    Update a pending prediction with its outcome.
+    """
+    if not record_id:
+        raise ValueError(
+            "Prediction ID is required."
+        )
+
+    if not isinstance(result, dict):
+        raise ValueError(
+            "Prediction result must be a dictionary."
+        )
+
+    return _call(
+        "PATCH",
+        TABLE,
+        params={
+            "id": f"eq.{record_id}",
+            "status": "eq.pending"
+        },
+        payload=result
+    )
