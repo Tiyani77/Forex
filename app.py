@@ -187,6 +187,14 @@ div[data-testid="stAlert"] {
 [data-testid="stTabs"] [data-baseweb="tab-highlight"] {
     background-color: #79b7ff !important;
 }
+/* Ensure slider captions remain readable against the dark terminal theme. */
+div[data-testid="stSlider"] label,
+div[data-testid="stSlider"] label *,
+div[data-testid="stSlider"] [data-testid="stWidgetLabel"],
+div[data-testid="stSlider"] [data-testid="stWidgetLabel"] * {
+    color: #c4d4ee !important;
+    opacity: 1 !important;
+}
 /* Improve visibility of editable numerical cost labels. */
 div[data-testid="stNumberInput"] label,
 div[data-testid="stNumberInput"] label *,
@@ -1701,7 +1709,14 @@ elif page == "Historical Backtesting":
                     "Evidence": "Small sample" if n_part < 30 else "Retrospective",
                 })
         holdout_table = pd.DataFrame(holdout_rows)
-        st.dataframe(holdout_table, hide_index=True, use_container_width=True)
+        holdout_display = holdout_table.copy()
+        for metric_column in (
+            "Net win %", "Avg net %", "Cumulative net %", "Max net drawdown %"
+        ):
+            holdout_display[metric_column] = holdout_display[
+                metric_column
+            ].apply(lambda value: f"{float(value):.2f}" if pd.notna(value) else "N/A")
+        st.dataframe(holdout_display, hide_index=True, use_container_width=True)
         if any(row["Trades"] < 30 for row in holdout_rows):
             st.warning(
                 "At least one segment contains fewer than 30 trades. "
