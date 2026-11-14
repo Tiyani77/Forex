@@ -2,6 +2,9 @@
 name: Collect forward predictions
 
 on:
+  # Daily at 06:15 UTC (08:15 South Africa time).
+  schedule:
+    - cron: '15 6 * * *'
   workflow_dispatch:
     inputs:
       dry_run:
