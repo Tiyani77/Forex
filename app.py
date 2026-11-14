@@ -5,7 +5,11 @@ import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
 import yfinance as yf
-from signal_models import BASELINE_VERSION, MOMENTUM_VERSION, momentum_signals
+from signal_models import (
+    BASELINE_VERSION, MOMENTUM_VERSION, CHANNEL_VERSION,
+    SUPPLY_DEMAND_VERSION, MODEL_LABELS, momentum_signals,
+    apply_research_model,
+)
 
 from datetime import datetime, timezone
 from prediction_store import (
@@ -27,7 +31,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-APP_VERSION = "V4.5"
+APP_VERSION = "V5.0 Research"
 MODEL_VERSION = BASELINE_VERSION
 
 
@@ -747,11 +751,12 @@ tf = st.sidebar.selectbox(
 
 strategy_label = st.sidebar.selectbox(
     "Signal strategy",
-    ["EMA + Engulfing (original)", "EMA + RSI + MACD (experimental)"],
-    help="Compare separately versioned research rules. Performance is not guaranteed.",
+    list(MODEL_LABELS.values()),
+    help="Book-informed research candidates are unvalidated.",
 )
-MODEL_VERSION = (
-    MOMENTUM_VERSION if "experimental" in strategy_label else BASELINE_VERSION
+MODEL_VERSION = next(
+    version for version, name in MODEL_LABELS.items()
+    if name == strategy_label
 )
 
 horizon = st.sidebar.slider(
@@ -799,8 +804,8 @@ if len(raw) < 60:
     st.stop()
 
 df = indicators(raw)
-if MODEL_VERSION == MOMENTUM_VERSION:
-    df["Buy"], df["Sell"] = momentum_signals(df)
+if MODEL_VERSION != BASELINE_VERSION:
+    df["Buy"], df["Sell"] = apply_research_model(df, MODEL_VERSION)
 trades = backtest(df, horizon)
 result = stats(trades)
 
@@ -969,10 +974,8 @@ if page == "Trading Terminal":
 
     with center:
         signal_message = (
-            "EMA + RSI + MACD momentum confirmation"
-            if MODEL_VERSION == MOMENTUM_VERSION
-            else "EMA trend + engulfing confirmation"
-        ) if signal != "WAIT" else (
+            MODEL_LABELS[MODEL_VERSION] + " research signal"
+            if signal != "WAIT" else
             "No qualifying setup for the selected strategy on the latest bar"
         )
 
@@ -1006,7 +1009,12 @@ if page == "Trading Terminal":
         )
 
     with right:
-        if MODEL_VERSION == MOMENTUM_VERSION:
+        if MODEL_VERSION in (CHANNEL_VERSION, SUPPLY_DEMAND_VERSION):
+            signal_description = (
+                "Book-informed price-structure research candidate. "
+                "Not a verified forecasting advantage."
+            )
+        elif MODEL_VERSION == MOMENTUM_VERSION:
             signal_description = (
                 "Experimental trend + RSI + MACD + candle-body confirmation."
                 if signal != "WAIT" else
@@ -1110,8 +1118,7 @@ if page == "Trading Terminal":
     with rcol1:
         st.metric("Observed market regime", current_regime)
     with rcol2:
-        st.metric("Selected strategy", "EMA + RSI + MACD"
-                  if MODEL_VERSION == MOMENTUM_VERSION else "EMA + Engulfing")
+        st.metric("Selected strategy", MODEL_LABELS[MODEL_VERSION].split(" (")[0])
     with rcol3:
         st.metric("Regime evidence", "Retrospective only")
 
