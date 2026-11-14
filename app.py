@@ -27,7 +27,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-APP_VERSION = "V4.0"
+APP_VERSION = "V4.1"
 MODEL_VERSION = BASELINE_VERSION
 
 
@@ -1063,6 +1063,102 @@ if page == "Trading Terminal":
             "</div></div>",
             unsafe_allow_html=True,
         )
+
+    # Market regime observations use the conservative penultimate bar.
+    # This prevents an in-progress Yahoo candle from being labelled final.
+    st.markdown("### Market regime intelligence")
+    regime_anchor = df.iloc[-2]
+    current_regime = str(regime_anchor["Regime"])
+    anchor_timestamp = pd.Timestamp(df.index[-2])
+    if anchor_timestamp.tzinfo is None:
+        anchor_timestamp = anchor_timestamp.tz_localize("UTC")
+    else:
+        anchor_timestamp = anchor_timestamp.tz_convert("UTC")
+
+    regime_explanations = {
+        "Trending": (
+            "The EMA20–EMA50 separation is relatively large "
+            "compared with recent average price movement."
+        ),
+        "Sideways": (
+            "EMA separation is relatively small compared "
+            "with recent average price movement."
+        ),
+        "High volatility": (
+            "ATR as a share of price exceeds its recent "
+            "historical 75th-percentile threshold."
+        ),
+        "Insufficient history": (
+            "There are not enough completed observations "
+            "to establish the rolling volatility threshold."
+        ),
+    }
+    st.caption(
+        f"Last conservatively selected candle: {anchor_timestamp.isoformat()}. "
+        "Descriptive research classification, not a live market quote."
+    )
+    rcol1, rcol2, rcol3 = st.columns([1.2, 1, 1])
+    with rcol1:
+        st.metric("Observed market regime", current_regime)
+    with rcol2:
+        st.metric("Selected strategy", "EMA + RSI + MACD"
+                  if MODEL_VERSION == MOMENTUM_VERSION else "EMA + Engulfing")
+    with rcol3:
+        st.metric("Regime evidence", "Retrospective only")
+
+    st.write(regime_explanations.get(current_regime, "Regime classification unavailable."))
+
+    # Research-only historical net results use a transparent fixed default of
+    # 4 basis points per round trip (2 spread + 1 slippage each side).
+    # They do not alter the collector, signal rules or saved predictions.
+    regime_trades = backtest(df, horizon, spread_bps=2.0, slippage_bps=1.0)
+    regime_subset = (
+        regime_trades.loc[regime_trades["Regime"] == current_regime]
+        if not regime_trades.empty else regime_trades
+    )
+    regime_n = len(regime_subset)
+    if current_regime == "Insufficient history":
+        st.info(
+            "Current regime cannot be classified reliably yet. "
+            "Historical regime-specific comparisons are unavailable."
+        )
+    elif regime_n == 0:
+        st.info(
+            "No completed historical trades for the selected strategy "
+            "in this regime and timeframe. There is no regime-specific "
+            "performance estimate."
+        )
+    else:
+        regime_net = regime_subset["Net return %"].astype(float)
+        regime_win_pct = 100 * float((regime_net > 0).mean())
+        regime_avg_pct = float(regime_net.mean())
+        a_reg, b_reg, c_reg = st.columns(3)
+        a_reg.metric("Historical regime trades", regime_n)
+        b_reg.metric("Historical net win rate", f"{regime_win_pct:.1f}%")
+        c_reg.metric("Average estimated net / trade", f"{regime_avg_pct:+.3f}%")
+        st.caption(
+            "Indicative net results use 2 bps round-trip spread plus "
+            "1 bp slippage per side (4 bps total). "
+            "This cost scenario is fixed on the Trading Terminal; "
+            "adjustable assumptions are on Historical Backtesting."
+        )
+        if regime_n < 30:
+            st.warning(
+                f"Only {regime_n} historical trade(s) occurred in this regime. "
+                "This is too little evidence to establish a reliable advantage. "
+                "The selected BUY/SELL/WAIT signal is not changed."
+            )
+        elif regime_avg_pct <= 0:
+            st.warning(
+                "Average estimated historical net return in this regime "
+                "was not positive. That does not predict the outcome "
+                "of the current signal."
+            )
+        else:
+            st.info(
+                "Historical average net return was positive in this regime, "
+                "but is not a calibrated prediction or probability of profit."
+            )
 
     st.markdown("### Price action & detected setups")
 
