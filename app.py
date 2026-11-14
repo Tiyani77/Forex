@@ -1401,9 +1401,37 @@ elif page == "Historical Backtesting":
     st.caption(
         f"Completed-bar signal → next-bar open entry → "
         f"close {horizon} bars after the signal. "
-        "Non-overlapping positions. Gross returns only: "
-        "no spread, fees, slippage, financing or leverage."
+        "Non-overlapping positions; estimates exclude financing, "
+        "market impact, leverage and position-sizing constraints."
     )
+
+    st.markdown("#### Trading cost assumptions (basis points)")
+    st.caption(
+        "1 basis point (bp) = 0.01% of notional. "
+        "These are editable scenario assumptions, not live broker quotes. "
+        "Spread and commission are round-trip; slippage is per side."
+    )
+    cost_a, cost_b, cost_c = st.columns(3)
+    with cost_a:
+        spread_bps = st.number_input(
+            "Round-trip spread (bps)", min_value=0.0, max_value=100.0,
+            value=2.0, step=0.5, key="bt_spread_bps",
+        )
+    with cost_b:
+        slippage_bps = st.number_input(
+            "Slippage per side (bps)", min_value=0.0, max_value=100.0,
+            value=1.0, step=0.5, key="bt_slippage_bps",
+        )
+    with cost_c:
+        commission_bps = st.number_input(
+            "Round-trip commission (bps)", min_value=0.0, max_value=100.0,
+            value=0.0, step=0.5, key="bt_commission_bps",
+        )
+
+    trades = backtest(df, horizon, spread_bps, slippage_bps, commission_bps)
+    result = stats(trades)
+    total_cost_bps = spread_bps + 2 * slippage_bps + commission_bps
+    st.caption(f"Estimated combined round-trip cost: {total_cost_bps:.2f} bps per trade.")
 
     if result is None:
         st.warning(
@@ -1423,10 +1451,18 @@ elif page == "Historical Backtesting":
         else:
             st.info(
                 f"{sample_count} retrospective trades analysed. "
-                "Results remain in-sample and exclude trading costs."
+                "Results remain in-sample. Net returns use the cost inputs above."
             )
 
         returns = trades["Gross return %"].astype(float)
+        net_returns = trades["Net return %"].astype(float)
+        net_equity = (1 + net_returns / 100).cumprod()
+        net_cumulative = (net_equity - 1) * 100
+        net_peak = np.maximum.accumulate(np.r_[1.0, net_equity.to_numpy()])[1:]
+        net_drawdown = (net_equity.to_numpy() / net_peak - 1) * 100
+        net_wins = net_returns[net_returns > 0].sum()
+        net_losses = -net_returns[net_returns < 0].sum()
+        net_pf = net_wins / net_losses if net_losses > 0 else None
 
         equity = (1 + returns / 100).cumprod()
         cumulative = (equity - 1) * 100
@@ -1496,11 +1532,17 @@ elif page == "Historical Backtesting":
             int((returns <= 0).sum()),
         )
 
+        st.markdown("#### Estimated results after trading costs")
+        n1, n2, n3, n4 = st.columns(4)
+        n1.metric("Net win rate", f"{(net_returns > 0).mean() * 100:.1f}%")
+        n2.metric("Cumulative net return", f"{net_cumulative.iloc[-1]:+.2f}%")
+        n3.metric("Max net drawdown", f"{net_drawdown.min():.2f}%")
+        n4.metric("Net profit factor", f"{net_pf:.2f}" if net_pf is not None else "N/A")
         st.caption(
-            "Cumulative return assumes sequential "
-            "reinvestment at 1× notional exposure. "
-            "This is an illustrative gross price-return "
-            "index, not a broker account equity curve."
+            "Both equity curves assume sequential 1× notional reinvestment "
+            "across non-overlapping trades. This is an illustrative return index, "
+            "not a broker account. Estimates exclude swap, financing, market "
+            "impact, changing spreads and currency conversion."
         )
 
         st.markdown("#### Statistical context")
@@ -1560,8 +1602,19 @@ elif page == "Historical Backtesting":
                 )
             )
 
+            fig.add_trace(
+                go.Scatter(
+                    x=np.r_[0, x],
+                    y=np.r_[0, net_cumulative.to_numpy()],
+                    mode="lines",
+                    name="Cumulative net return",
+                    line=dict(color="#55d6ac", width=3),
+                )
+            )
+
             fig.update_layout(
-                title="Cumulative gross return (%)",
+                title="Cumulative gross vs estimated net return (%)",
+                showlegend=True,
                 xaxis_title="Completed trade number",
                 yaxis_title="Return (%)",
             )
@@ -1588,8 +1641,15 @@ elif page == "Historical Backtesting":
                 )
             )
 
+            fig.add_trace(
+                go.Scatter(
+                    x=x, y=net_drawdown, mode="lines",
+                    name="Net drawdown", line=dict(color="#55d6ac", width=2),
+                )
+            )
             fig.update_layout(
-                title="Peak-to-trough gross drawdown (%)",
+                title="Peak-to-trough gross vs estimated net drawdown (%)",
+                showlegend=True,
                 xaxis_title="Completed trade number",
                 yaxis_title="Drawdown (%)",
             )
@@ -1609,8 +1669,19 @@ elif page == "Historical Backtesting":
                 )
             )
 
+            fig.add_trace(
+                go.Histogram(
+                    x=net_returns,
+                    nbinsx=30,
+                    opacity=0.55,
+                    marker_color="#55d6ac",
+                    name="Estimated net",
+                )
+            )
             fig.update_layout(
-                title="Distribution of gross returns",
+                title="Distribution of gross vs net returns",
+                showlegend=True,
+                barmode="overlay",
                 xaxis_title="Return per trade (%)",
                 yaxis_title="Number of trades",
                 bargap=0.1,
@@ -1630,6 +1701,8 @@ elif page == "Historical Backtesting":
         trade_history["Gross return %"] = (
             trade_history["Gross return %"].round(4)
         )
+        trade_history["Estimated cost %"] = trade_history["Estimated cost %"].round(4)
+        trade_history["Net return %"] = trade_history["Net return %"].round(4)
 
         trade_history["Entry"] = (
             trade_history["Entry"].round(5)
