@@ -147,6 +147,7 @@ def download_candles(ticker, timeframe):
         return pd.DataFrame()
 
     data = data.dropna(subset=required).sort_index()
+    data = data[~data.index.duplicated(keep="last")]
 
     if timeframe == "4h":
         columns = {
@@ -182,14 +183,17 @@ def evaluate_one(record, candles):
     signal = record["signal"]
     timeframe = record["timeframe"]
     horizon = int(record["horizon_bars"])
+    if horizon < 1 or horizon > 100:
+        return "invalid_horizon"
+    if timeframe not in TIMEFRAMES:
+        return "invalid_timeframe"
 
-    signal_time = pd.Timestamp(
-        record["signal_bar_at"]
-    ).tz_convert("UTC")
-
-    recorded_time = pd.Timestamp(
-        record["recorded_at"]
-    ).tz_convert("UTC")
+    signal_time = pd.to_datetime(
+        record["signal_bar_at"], utc=True
+    )
+    recorded_time = pd.to_datetime(
+        record["recorded_at"], utc=True
+    )
 
     # The signal bar must be present in downloaded history.
     matching = candles.index == signal_time
@@ -209,20 +213,27 @@ def evaluate_one(record, candles):
 
     # Never evaluate a forecast using a target candle
     # that was already available when it was saved.
-    if target_time <= recorded_time:
-        return "not_ready"
-
-    # Extra conservative check for daily and intraday bars.
+    # The provider index is the START of the outcome candle.
+    # A prediction recorded after that opening can still be legitimate
+    # provided it was saved before the outcome candle CLOSED.
     duration = TIMEFRAMES[timeframe][2]
-    now = datetime.now(timezone.utc)
+    outcome_close_time = target_time.to_pydatetime() + duration
+    if outcome_close_time <= recorded_time.to_pydatetime():
+        return "outcome_preceded_recording"
 
-    if target_time.to_pydatetime() + duration > now:
+    # For intraday and daily data, wait for the entire outcome bar to close.
+    now = datetime.now(timezone.utc)
+    if outcome_close_time > now:
         return "not_ready"
 
     close = float(candles["Close"].iloc[target_position])
     reference = float(record["reference_close"])
 
-    if reference <= 0 or close <= 0:
+    if (
+        not pd.notna(reference) or not pd.notna(close)
+        or not (0 < reference < float("inf"))
+        or not (0 < close < float("inf"))
+    ):
         return "invalid_price"
 
     raw_move_pct = (close / reference - 1) * 100
