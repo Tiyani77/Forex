@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 import pandas as pd
 import yfinance as yf
 from prediction_store import config, list_predictions, save_prediction
+from signal_models import BASELINE_VERSION, MOMENTUM_VERSION, momentum_signals
 
 MARKETS = {
     'EUR/USD':'EURUSD=X','GBP/USD':'GBPUSD=X','USD/JPY':'JPY=X',
@@ -23,7 +24,7 @@ MARKETS = {
     'SOL/USD':'SOL-USD',
 }
 TIMEFRAMES = {'1d':('1d','2y')}  # Start with daily only; add intraday after validation.
-MODEL_VERSION = 'ema20-ema50-engulf-v1'
+MODEL_VERSION = BASELINE_VERSION
 HORIZON_BARS = 5
 
 
@@ -39,7 +40,7 @@ def download(ticker, interval, period):
     return df.dropna(subset=['Open','High','Low','Close']).sort_index()
 
 
-def prediction(name, ticker, timeframe, df):
+def prediction(name, ticker, timeframe, df, model_version=BASELINE_VERSION):
     if len(df) < 60:
         return None
     df = df.copy()
@@ -52,14 +53,18 @@ def prediction(name, ticker, timeframe, df):
             & (df.Open >= previous.Close) & (df.Close <= previous.Open))
     # Match the Streamlit app: penultimate Yahoo bar, conservatively.
     anchor = df.iloc[-2]
-    buy = anchor.EMA20 > anchor.EMA50 and bool(bull.iloc[-2])
-    sell = anchor.EMA20 < anchor.EMA50 and bool(bear.iloc[-2])
+    if model_version == MOMENTUM_VERSION:
+        buys, sells = momentum_signals(df)
+        buy, sell = bool(buys.iloc[-2]), bool(sells.iloc[-2])
+    else:
+        buy = anchor.EMA20 > anchor.EMA50 and bool(bull.iloc[-2])
+        sell = anchor.EMA20 < anchor.EMA50 and bool(bear.iloc[-2])
     signal = 'BUY' if buy else ('SELL' if sell else 'WAIT')
     at = pd.Timestamp(df.index[-2])
     at = at.tz_localize('UTC') if at.tzinfo is None else at.tz_convert('UTC')
     return {
         'instrument': name, 'ticker': ticker, 'timeframe': timeframe,
-        'signal': signal, 'model_version': MODEL_VERSION,
+        'signal': signal, 'model_version': model_version,
         'signal_bar_at': at.isoformat(),
         'reference_close': float(anchor.Close),
         'horizon_bars': HORIZON_BARS,
@@ -85,29 +90,36 @@ def main():
     for timeframe, (interval, period) in TIMEFRAMES.items():
         for name, ticker in MARKETS.items():
             try:
-                payload = prediction(name, ticker, timeframe,
-                                     download(ticker, interval, period))
-                if payload is None:
-                    print(f'{name} {timeframe}: insufficient candles')
-                    continue
-                counts['candidates'] += 1
-                print(f"{name} {timeframe}: {payload['signal']} @ {payload['signal_bar_at']}")
-                if payload['signal'] == 'WAIT' and not args.include_wait:
-                    counts['wait_skipped'] += 1
-                    continue
-                key = (ticker, timeframe,
-                       str(pd.Timestamp(payload['signal_bar_at']).tz_convert('UTC')),
-                       MODEL_VERSION, HORIZON_BARS)
-                if key in existing:
-                    counts['duplicate'] += 1
-                    continue
-                if not args.dry_run:
-                    save_prediction(payload)
-                    existing.add(key)
-                    counts['saved'] += 1
+                candles = download(ticker, interval, period)
             except Exception as exc:
                 counts['errors'] += 1
-                print(f'ERROR {name} {timeframe}: {type(exc).__name__}: {exc}')
+                print(f'ERROR downloading {name} {timeframe}: {type(exc).__name__}: {exc}')
+                continue
+
+            for model_version in (BASELINE_VERSION, MOMENTUM_VERSION):
+                try:
+                    payload = prediction(name, ticker, timeframe, candles, model_version)
+                    if payload is None:
+                        print(f'{name} {timeframe}: insufficient candles')
+                        continue
+                    counts['candidates'] += 1
+                    print(f"{name} {timeframe} {model_version}: {payload['signal']} @ {payload['signal_bar_at']}")
+                    if payload['signal'] == 'WAIT' and not args.include_wait:
+                        counts['wait_skipped'] += 1
+                        continue
+                    key = (ticker, timeframe,
+                           str(pd.Timestamp(payload['signal_bar_at']).tz_convert('UTC')),
+                           model_version, HORIZON_BARS)
+                    if key in existing:
+                        counts['duplicate'] += 1
+                        continue
+                    if not args.dry_run:
+                        save_prediction(payload)
+                        existing.add(key)
+                        counts['saved'] += 1
+                except Exception as exc:
+                    counts['errors'] += 1
+                    print(f'ERROR {name} {timeframe} {model_version}: {type(exc).__name__}: {exc}')
     print('Collection summary:', counts)
     if counts['errors']:
         sys.exit(1)
