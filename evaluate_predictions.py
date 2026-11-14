@@ -211,6 +211,17 @@ def evaluate_one(record, candles):
 
     target_time = candles.index[target_position]
 
+    # Genuine forward performance must not contain already-completed
+    # subsequent bars when the forecast was first recorded.
+    # It is okay to record during the first subsequent bar, but not
+    # after that bar has finished. Historical/manual late entries are
+    # kept pending for review rather than counted as forward accuracy.
+    duration = TIMEFRAMES[timeframe][2]
+    first_future_open = candles.index[signal_position + 1]
+    first_future_close = first_future_open.to_pydatetime() + duration
+    if recorded_time.to_pydatetime() >= first_future_close:
+        return "late_recording"
+
     # Never evaluate a forecast using a target candle
     # that was already available when it was saved.
     # The provider index is the START of the outcome candle.
