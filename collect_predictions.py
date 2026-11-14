@@ -4,7 +4,7 @@ Run with --dry-run first. Requires prediction_store.py in repository root.
 """
 import argparse
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 import pandas as pd
 import yfinance as yf
@@ -37,13 +37,24 @@ def download(ticker, interval, period):
         df.columns = df.columns.get_level_values(0)
     if not {'Open','High','Low','Close'}.issubset(df.columns):
         return pd.DataFrame()
-    return df.dropna(subset=['Open','High','Low','Close']).sort_index()
+    df = df.dropna(subset=['Open','High','Low','Close']).sort_index()
+    return df[~df.index.duplicated(keep='last')]
 
 
 def prediction(name, ticker, timeframe, df, model_version=BASELINE_VERSION):
+    if timeframe != '1d':
+        raise ValueError('Collector currently supports completed daily bars only')
+    if df.empty:
+        return None
+
+    # Yahoo may include the still-forming daily bar or end with the most
+    # recent completed one. Choose by timestamp rather than always -2.
+    now = pd.Timestamp.now(tz='UTC')
+    index_utc = pd.to_datetime(df.index, utc=True)
+    completed = (index_utc + pd.Timedelta(days=1) <= now)
+    df = df.loc[completed].copy()
     if len(df) < 60:
         return None
-    df = df.copy()
     df['EMA20'] = df.Close.ewm(span=20, adjust=False).mean()
     df['EMA50'] = df.Close.ewm(span=50, adjust=False).mean()
     previous = df.shift(1)
@@ -51,16 +62,16 @@ def prediction(name, ticker, timeframe, df, model_version=BASELINE_VERSION):
             & (df.Open <= previous.Close) & (df.Close >= previous.Open))
     bear = ((previous.Close > previous.Open) & (df.Close < df.Open)
             & (df.Open >= previous.Close) & (df.Close <= previous.Open))
-    # Match the Streamlit app: penultimate Yahoo bar, conservatively.
-    anchor = df.iloc[-2]
+    # Latest actually completed bar; never the forming daily candle.
+    anchor = df.iloc[-1]
     if model_version == MOMENTUM_VERSION:
         buys, sells = momentum_signals(df)
-        buy, sell = bool(buys.iloc[-2]), bool(sells.iloc[-2])
+        buy, sell = bool(buys.iloc[-1]), bool(sells.iloc[-1])
     else:
-        buy = anchor.EMA20 > anchor.EMA50 and bool(bull.iloc[-2])
-        sell = anchor.EMA20 < anchor.EMA50 and bool(bear.iloc[-2])
+        buy = anchor.EMA20 > anchor.EMA50 and bool(bull.iloc[-1])
+        sell = anchor.EMA20 < anchor.EMA50 and bool(bear.iloc[-1])
     signal = 'BUY' if buy else ('SELL' if sell else 'WAIT')
-    at = pd.Timestamp(df.index[-2])
+    at = pd.Timestamp(df.index[-1])
     at = at.tz_localize('UTC') if at.tzinfo is None else at.tz_convert('UTC')
     return {
         'instrument': name, 'ticker': ticker, 'timeframe': timeframe,
