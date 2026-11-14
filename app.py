@@ -27,7 +27,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-APP_VERSION = "V3.6"
+APP_VERSION = "V3.7"
 MODEL_VERSION = BASELINE_VERSION
 
 
@@ -378,7 +378,7 @@ def indicators(data):
 # HISTORICAL BACKTESTING
 # ============================================================
 
-def backtest(df, horizon=5):
+def backtest(df, horizon=5, spread_bps=0.0, slippage_bps=0.0, commission_bps=0.0):
     """
     Historical simulation:
     - Signal on completed candle
@@ -386,7 +386,9 @@ def backtest(df, horizon=5):
     - Exit after horizon bars
     - Skip overlapping trades
 
-    Returns are gross price changes, not executable P&L.
+    Returns are indicative price changes, not executable P&L.
+    Cost inputs are round-trip spread and commission plus per-side slippage,
+    all in basis points of notional; net is an approximate return adjustment.
     """
 
     results = []
@@ -419,6 +421,8 @@ def backtest(df, horizon=5):
         trade_return = (
             100 * side * (exit_price - entry) / entry
         )
+        total_cost_bps = spread_bps + 2 * slippage_bps + commission_bps
+        net_return = trade_return - total_cost_bps / 100.0
 
         results.append({
             "Signal time": str(df.index[i]),
@@ -426,7 +430,10 @@ def backtest(df, horizon=5):
             "Entry": entry,
             "Exit": exit_price,
             "Gross return %": trade_return,
+            "Estimated cost %": total_cost_bps / 100.0,
+            "Net return %": net_return,
             "Win": trade_return > 0,
+            "Net win": net_return > 0,
         })
 
         next_allowed = i + horizon + 1
