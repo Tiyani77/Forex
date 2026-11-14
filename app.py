@@ -1604,6 +1604,54 @@ elif page == "Historical Backtesting":
     total_cost_bps = spread_bps + 2 * slippage_bps + commission_bps
     st.caption(f"Estimated combined round-trip cost: {total_cost_bps:.2f} bps per trade.")
 
+    st.markdown("#### V5.0 · Book-informed candidate benchmark")
+    st.caption(
+        "Two mechanical interpretations of your trading books: "
+        "trend-continuation channel breakouts (Christopher Weaver) "
+        "and price rejection near prior supply/demand range zones "
+        "(Jode Lebin, with Falcon-style structure context). "
+        "These are experimental, not verified implementations of "
+        "complete discretionary book strategies. All models use the "
+        "same retrospective bars, holding period and estimated costs."
+    )
+    v5_rows = []
+    for version in MODEL_LABELS:
+        candidate = indicators(raw)
+        if version != BASELINE_VERSION:
+            candidate["Buy"], candidate["Sell"] = apply_research_model(
+                candidate, version
+            )
+        bt = backtest(
+            candidate, horizon, spread_bps, slippage_bps, commission_bps
+        )
+        values = (
+            bt["Net return %"].astype(float)
+            if not bt.empty else pd.Series(dtype=float)
+        )
+        v5_rows.append({
+            "Research model": MODEL_LABELS[version],
+            "Signals tested": len(bt),
+            "Net win %": round(100 * (values > 0).mean(), 1)
+            if len(values) else None,
+            "Avg net %": round(float(values.mean()), 4)
+            if len(values) else None,
+            "Net cumulative %": round(
+                float(((1 + values / 100).prod() - 1) * 100), 3
+            ) if len(values) else None,
+            "Evidence": "No trades" if not len(bt)
+            else "Small sample" if len(bt) < 30
+            else "Retrospective only",
+        })
+    st.dataframe(
+        pd.DataFrame(v5_rows), hide_index=True,
+        use_container_width=True,
+    )
+    st.warning(
+        "This is model development on historical data, not independent "
+        "validation. No new model has been proven more accurate; "
+        "compare it against the original baselines before live use."
+    )
+
     if result is None:
         st.warning(
             "No completed historical trades for this "
@@ -1714,54 +1762,6 @@ elif page == "Historical Backtesting":
             "across non-overlapping trades. This is an illustrative return index, "
             "not a broker account. Estimates exclude swap, financing, market "
             "impact, changing spreads and currency conversion."
-        )
-
-        st.markdown("#### V5.0 · Book-informed candidate benchmark")
-        st.caption(
-            "Two mechanical interpretations of your trading books: "
-            "trend-continuation channel breakouts (Christopher Weaver) "
-            "and price rejection near prior supply/demand range zones "
-            "(Jode Lebin, with Falcon-style structure context). "
-            "These are experimental, not verified implementations of "
-            "complete discretionary book strategies. All models use the "
-            "same retrospective bars, holding period and estimated costs."
-        )
-        v5_rows = []
-        for version in MODEL_LABELS:
-            candidate = indicators(raw)
-            if version != BASELINE_VERSION:
-                candidate["Buy"], candidate["Sell"] = apply_research_model(
-                    candidate, version
-                )
-            bt = backtest(
-                candidate, horizon, spread_bps, slippage_bps, commission_bps
-            )
-            values = (
-                bt["Net return %"].astype(float)
-                if not bt.empty else pd.Series(dtype=float)
-            )
-            v5_rows.append({
-                "Research model": MODEL_LABELS[version],
-                "Signals tested": len(bt),
-                "Net win %": round(100 * (values > 0).mean(), 1)
-                if len(values) else None,
-                "Avg net %": round(float(values.mean()), 4)
-                if len(values) else None,
-                "Net cumulative %": round(
-                    float(((1 + values / 100).prod() - 1) * 100), 3
-                ) if len(values) else None,
-                "Evidence": "No trades" if not len(bt)
-                else "Small sample" if len(bt) < 30
-                else "Retrospective only",
-            })
-        st.dataframe(
-            pd.DataFrame(v5_rows), hide_index=True,
-            use_container_width=True,
-        )
-        st.warning(
-            "This is model development on historical data, not independent "
-            "validation. No new model has been proven more accurate; "
-            "compare it against the original baselines before live use."
         )
 
         st.markdown("#### Compare both strategies on identical price history")
