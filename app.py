@@ -166,6 +166,18 @@ div[data-testid="stAlert"] {
 [data-testid="stTabs"] button[aria-selected="true"] {
     color: #79b7ff !important;
 }
+/* Streamlit versions can style tab text on nested elements. */
+[data-testid="stTabs"] button p,
+[data-testid="stTabs"] button span {
+    color: #c4d4ee !important;
+}
+[data-testid="stTabs"] button[aria-selected="true"] p,
+[data-testid="stTabs"] button[aria-selected="true"] span {
+    color: #9dcbff !important;
+}
+[data-testid="stTabs"] [data-baseweb="tab-highlight"] {
+    background-color: #79b7ff !important;
+}
 </style>
 """,
     unsafe_allow_html=True,
@@ -487,6 +499,9 @@ def style_backtest(fig):
         paper_bgcolor="#101a2b",
         plot_bgcolor="#101a2b",
         font=dict(color="#dce7fa", size=13),
+        title_font=dict(color="#f2f6ff", size=19),
+        xaxis=dict(title_font=dict(color="#b9cae5"), tickfont=dict(color="#b9cae5")),
+        yaxis=dict(title_font=dict(color="#b9cae5"), tickfont=dict(color="#b9cae5")),
         height=400,
         margin=dict(l=28, r=24, t=62, b=42),
         showlegend=False,
