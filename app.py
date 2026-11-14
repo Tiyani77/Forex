@@ -27,7 +27,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-APP_VERSION = "V3.9"
+APP_VERSION = "V4.0"
 MODEL_VERSION = BASELINE_VERSION
 
 
@@ -396,6 +396,32 @@ def indicators(data):
         df.Close < df.PriorLow20
     ).fillna(False)
 
+    # Descriptive, causal regime labels. Thresholds are research assumptions,
+    # not optimised against any future returns.
+    true_range = pd.concat(
+        [
+            df.High - df.Low,
+            (df.High - df.Close.shift(1)).abs(),
+            (df.Low - df.Close.shift(1)).abs(),
+        ], axis=1,
+    ).max(axis=1)
+    atr14 = true_range.ewm(alpha=1 / 14, adjust=False).mean()
+    atr_pct_series = 100 * atr14 / df.Close.replace(0, np.nan)
+    # Previous 60 completed observations only: the current candle is excluded
+    # from the volatility threshold, avoiding any future look-ahead.
+    volatility_cutoff = (
+        atr_pct_series.rolling(60, min_periods=30).quantile(0.75).shift(1)
+    )
+    high_vol = atr_pct_series > volatility_cutoff
+    trending = (df.EMA20 - df.EMA50).abs() > (0.7 * atr14)
+    sufficient = volatility_cutoff.notna() & (atr14 > 0)
+    df["Regime"] = np.select(
+        [sufficient & high_vol, sufficient & trending],
+        ["High volatility", "Trending"],
+        default="Sideways",
+    )
+    df.loc[~sufficient, "Regime"] = "Insufficient history"
+
     return df
 
 
@@ -452,6 +478,7 @@ def backtest(df, horizon=5, spread_bps=0.0, slippage_bps=0.0, commission_bps=0.0
         results.append({
             "Signal time": str(df.index[i]),
             "Exit time": str(df.index[i + horizon]),
+            "Regime": str(df["Regime"].iloc[i]) if "Regime" in df else "Unknown",
             "Direction": "BUY" if side == 1 else "SELL",
             "Entry": entry,
             "Exit": exit_price,
@@ -1832,6 +1859,87 @@ elif page == "Historical Backtesting":
                 "predictive reliability. Window-specific compounding resets in "
                 "each segment, and outcomes crossing window edges are excluded."
             )
+
+        st.markdown("#### V4.0 · Market regime analysis")
+        st.caption(
+            "Mutually exclusive categories determined at each signal candle: "
+            "high volatility when ATR(14) as a percentage of price exceeds the "
+            "previous 60-bar 75th percentile; otherwise trending when the "
+            "absolute EMA20–EMA50 gap exceeds 0.7 × ATR(14); otherwise sideways. "
+            "High volatility takes priority. The first observations without "
+            "sufficient threshold history are excluded. These are descriptive "
+            "thresholds, not an optimised regime predictor."
+        )
+        regime_names = ("Trending", "Sideways", "High volatility")
+        regime_rows = []
+        for model_name, model_df in (
+            ("EMA + Engulfing", baseline_df),
+            ("EMA + RSI + MACD", momentum_df),
+        ):
+            model_trades = backtest(
+                model_df, horizon, spread_bps, slippage_bps, commission_bps
+            )
+            for regime_name in regime_names:
+                part = (
+                    model_trades.loc[model_trades["Regime"] == regime_name]
+                    if not model_trades.empty else model_trades
+                )
+                count = len(part)
+                if not count:
+                    regime_rows.append({
+                        "Strategy": model_name, "Regime": regime_name,
+                        "Trades": 0, "Net win %": None,
+                        "Average net %": None, "Cumulative net %": None,
+                        "Net profit factor": None, "Evidence": "No trades",
+                    })
+                    continue
+                values = part["Net return %"].astype(float)
+                positive = values.loc[values > 0].sum()
+                negative = -values.loc[values < 0].sum()
+                compounded = ((1 + values / 100).prod() - 1) * 100
+                regime_rows.append({
+                    "Strategy": model_name, "Regime": regime_name,
+                    "Trades": count,
+                    "Net win %": round(float(100 * (values > 0).mean()), 1),
+                    "Average net %": round(float(values.mean()), 4),
+                    "Cumulative net %": round(float(compounded), 3),
+                    "Net profit factor": round(float(positive / negative), 2)
+                    if negative > 0 else None,
+                    "Evidence": "Small sample" if count < 30 else "Retrospective",
+                })
+
+        regime_table = pd.DataFrame(regime_rows)
+        regime_display = regime_table.copy()
+        for metric in (
+            "Net win %", "Average net %", "Cumulative net %", "Net profit factor"
+        ):
+            regime_display[metric] = regime_display[metric].apply(
+                lambda value: f"{float(value):.2f}" if pd.notna(value) else "N/A"
+            )
+        st.dataframe(regime_display, hide_index=True, use_container_width=True)
+        available_regimes = regime_table.loc[regime_table["Trades"] > 0]
+        if not available_regimes.empty:
+            regime_chart = px.bar(
+                available_regimes, x="Regime", y="Average net %",
+                color="Strategy", barmode="group",
+                title="Average estimated net return per trade by market regime",
+                template="plotly_dark",
+                category_orders={"Regime": list(regime_names)},
+            )
+            regime_chart.update_layout(
+                paper_bgcolor="#101a2b", plot_bgcolor="#101a2b",
+                font=dict(color="#dce7fa"),
+                title_font=dict(color="#f2f6ff"),
+                legend=dict(font=dict(color="#e5efff")),
+                height=390,
+            )
+            st.plotly_chart(regime_chart, use_container_width=True)
+        st.warning(
+            "Regime samples can be very small and market conditions are "
+            "not stable through time. These retrospective groupings must "
+            "not be used to claim that a strategy works reliably in a "
+            "particular regime. Live Supabase forward accuracy remains separate."
+        )
 
         st.markdown("#### Statistical context")
         win_count = int((returns > 0).sum())
