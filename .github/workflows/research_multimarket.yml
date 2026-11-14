@@ -1,0 +1,56 @@
+name: Research V5 Strategy Benchmarks
+
+on:
+  workflow_dispatch:
+    inputs:
+      period:
+        description: "Daily candle history"
+        required: true
+        type: choice
+        options:
+          - 5y
+          - 2y
+          - 10y
+        default: 5y
+      horizon:
+        description: "Holding bars after signal (1-20)"
+        required: true
+        type: number
+        default: 5
+
+permissions:
+  contents: read
+
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install research dependencies
+        run: pip install pandas numpy yfinance requests
+
+      - name: Compile and test models
+        run: |
+          python -m compileall -q signal_models.py research_multimarket.py tests
+          python -m unittest discover -s tests -p 'test_book_strategies.py' -v
+          python -m unittest discover -s tests -p 'test_multimarket_research.py' -v
+
+      - name: Run FX multi-market diagnostic
+        run: |
+          python research_multimarket.py --period "${{ inputs.period }}" --horizon "${{ inputs.horizon }}" --cost-bps 4 --split 0.70 --output-dir research_outputs
+
+      - name: Upload research CSV results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v5-fx-research-results
+          path: research_outputs/
+          if-no-files-found: warn
