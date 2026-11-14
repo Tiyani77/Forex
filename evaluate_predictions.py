@@ -220,7 +220,17 @@ def evaluate_one(record, candles):
     first_future_open = candles.index[signal_position + 1]
     first_future_close = first_future_open.to_pydatetime() + duration
     if recorded_time.to_pydatetime() >= first_future_close:
-        return "late_recording"
+        # A later historical capture is not a genuine forward forecast.
+        # Preserve the record but exclude it permanently from scoring.
+        updated = db_request(
+            "PATCH",
+            params={"id": f"eq.{record['id']}", "status": "eq.pending"},
+            payload={
+                "status": "unavailable",
+                "evaluated_at": datetime.now(timezone.utc).isoformat(),
+            },
+        )
+        return "late_recording_unavailable" if updated else "already_updated"
 
     # Never evaluate a forecast using a target candle
     # that was already available when it was saved.
