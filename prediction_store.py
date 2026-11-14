@@ -7,6 +7,7 @@ Server-side only.
 Never expose Supabase secret keys in GitHub.
 """
 
+import os
 import requests
 import streamlit as st
 from urllib.parse import urlsplit, urlunsplit
@@ -17,21 +18,22 @@ TABLE = "forex_predictions"
 
 def config():
     """
-    Read Supabase credentials from Streamlit Secrets.
+    Read Supabase credentials from environment variables or Streamlit Secrets.
 
     Returns (base_url, api_key) or None.
     Compatible with existing app.py.
     """
     try:
-        raw_url = str(
-            st.secrets.get("SUPABASE_URL", "")
-        ).strip()
+        # GitHub Actions provides environment variables; Streamlit Cloud uses st.secrets.
+        raw_url = os.environ.get("SUPABASE_URL", "").strip()
+        api_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "").strip()
 
-        api_key = str(
-            st.secrets.get(
-                "SUPABASE_SERVICE_ROLE_KEY", ""
-            )
-        ).strip()
+        if not raw_url or not api_key:
+            try:
+                raw_url = raw_url or str(st.secrets.get("SUPABASE_URL", "")).strip()
+                api_key = api_key or str(st.secrets.get("SUPABASE_SERVICE_ROLE_KEY", "")).strip()
+            except Exception:
+                pass
 
         if not raw_url or not api_key:
             return None
