@@ -27,7 +27,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-APP_VERSION = "V4.2"
+APP_VERSION = "V4.3"
 MODEL_VERSION = BASELINE_VERSION
 
 
@@ -2815,6 +2815,227 @@ elif page == "Prediction History":
                         "WAIT is an abstention and is excluded from "
                         "directional performance monitoring."
                     )
+
+                # --------------------------------------------
+                # V4.3 FORWARD PERFORMANCE DASHBOARD
+                # --------------------------------------------
+                st.markdown("### V4.3 · Forward performance dashboard")
+                st.caption(
+                    "Only Supabase predictions recorded before their outcome "
+                    "are used here. WAIT, pending and unavailable records are "
+                    "never counted as correct or incorrect. Directional returns "
+                    "measure close-to-close moves, not executable trade P&L."
+                )
+                filter_a, filter_b, filter_c = st.columns(3)
+                with filter_a:
+                    selected_strategy = st.selectbox(
+                        "Strategy",
+                        ["All strategies"] + sorted(
+                            directional_monitor["model_version"]
+                            .dropna().astype(str).unique().tolist()
+                        ),
+                        key="v43_strategy",
+                    )
+                with filter_b:
+                    selected_instrument = st.selectbox(
+                        "Market",
+                        ["All markets"] + sorted(
+                            directional_monitor["instrument"]
+                            .dropna().astype(str).unique().tolist()
+                        ),
+                        key="v43_market",
+                    )
+                with filter_c:
+                    selected_timeframe = st.selectbox(
+                        "Timeframe",
+                        ["All timeframes"] + sorted(
+                            directional_monitor["timeframe"]
+                            .dropna().astype(str).unique().tolist()
+                        ),
+                        key="v43_timeframe",
+                    )
+
+                focused = directional_monitor.copy()
+                if selected_strategy != "All strategies":
+                    focused = focused.loc[
+                        focused["model_version"] == selected_strategy
+                    ]
+                if selected_instrument != "All markets":
+                    focused = focused.loc[
+                        focused["instrument"] == selected_instrument
+                    ]
+                if selected_timeframe != "All timeframes":
+                    focused = focused.loc[
+                        focused["timeframe"] == selected_timeframe
+                    ]
+
+                focused_scored = focused.loc[
+                    (focused["status"] == "evaluated")
+                    & focused["correct"].notna()
+                ].copy()
+                # Supabase may return boolean values as Python bools or strings.
+                correctness_map = {
+                    True: 1, False: 0, 1: 1, 0: 0,
+                    "true": 1, "false": 0, "True": 1, "False": 0,
+                }
+                focused_scored["win"] = (
+                    focused_scored["correct"].map(correctness_map)
+                )
+                focused_scored = focused_scored.dropna(subset=["win"]).copy()
+                focused_scored["win"] = focused_scored["win"].astype(int)
+
+                focus_total = len(focused)
+                focus_evaluated = len(focused_scored)
+                focus_pending = int((focused["status"] == "pending").sum())
+                focus_unavailable = int(
+                    (focused["status"] == "unavailable").sum()
+                )
+                focus_accuracy = (
+                    100 * focused_scored["win"].mean()
+                    if focus_evaluated else None
+                )
+                fm1, fm2, fm3, fm4 = st.columns(4)
+                fm1.metric("Filtered forecasts", focus_total)
+                fm2.metric("Evaluated BUY/SELL", focus_evaluated)
+                fm3.metric(
+                    "Directional accuracy",
+                    f"{focus_accuracy:.1f}%" if focus_accuracy is not None
+                    else "—",
+                )
+                fm4.metric("Pending / unavailable",
+                           f"{focus_pending} / {focus_unavailable}")
+
+                if focus_evaluated:
+                    # Wilson interval is descriptive and does not address
+                    # market dependence or strategy selection bias.
+                    successes = int(focused_scored["win"].sum())
+                    n = focus_evaluated
+                    p = successes / n
+                    z = 1.96
+                    d = 1 + z * z / n
+                    center = (p + z * z / (2 * n)) / d
+                    half_width = (
+                        z * np.sqrt(
+                            p * (1 - p) / n + z * z / (4 * n * n)
+                        ) / d
+                    )
+                    st.caption(
+                        f"Observed accuracy: {successes}/{n} correctly "
+                        f"predicted directions. Approximate Wilson 95% "
+                        f"interval: {100 * (center - half_width):.1f}%–"
+                        f"{100 * (center + half_width):.1f}%. "
+                        "Trade outcomes may be correlated, so the interval "
+                        "is not a guarantee of future performance."
+                    )
+                    if n < 30:
+                        st.warning(
+                            f"Only {n} evaluated directional forecasts in "
+                            "this selection. Too few to infer a reliable edge."
+                        )
+
+                    returns_focus = pd.to_numeric(
+                        focused_scored["directional_return_pct"],
+                        errors="coerce",
+                    ).dropna()
+                    if not returns_focus.empty:
+                        rr1, rr2 = st.columns(2)
+                        rr1.metric(
+                            "Mean directional price move",
+                            f"{returns_focus.mean():+.3f}%",
+                        )
+                        rr2.metric(
+                            "Median directional price move",
+                            f"{returns_focus.median():+.3f}%",
+                        )
+                        st.caption(
+                            "Signed price movement relative to the saved "
+                            "reference close; excludes spreads, execution "
+                            "costs, leverage, sizing and financing."
+                        )
+
+                    st.markdown("#### Accuracy as outcomes accumulate")
+                    scored_timeline = focused_scored.copy()
+                    scored_timeline["outcome_bar_at"] = pd.to_datetime(
+                        scored_timeline["outcome_bar_at"],
+                        utc=True, errors="coerce",
+                    )
+                    scored_timeline["evaluated_at"] = pd.to_datetime(
+                        scored_timeline["evaluated_at"],
+                        utc=True, errors="coerce",
+                    )
+                    scored_timeline["Timeline date"] = (
+                        scored_timeline["outcome_bar_at"].fillna(
+                            scored_timeline["evaluated_at"]
+                        )
+                    )
+                    scored_timeline = scored_timeline.dropna(
+                        subset=["Timeline date"]
+                    ).sort_values(
+                        ["Timeline date", "recorded_at"]
+                    )
+                    if not scored_timeline.empty:
+                        scored_timeline["Evaluated count"] = np.arange(
+                            1, len(scored_timeline) + 1
+                        )
+                        scored_timeline["Running accuracy %"] = (
+                            scored_timeline["win"].cumsum()
+                            / scored_timeline["Evaluated count"] * 100
+                        )
+                        fig = px.line(
+                            scored_timeline,
+                            x="Evaluated count", y="Running accuracy %",
+                            markers=True,
+                            title="Cumulative directional accuracy by evaluated forecast",
+                            template="plotly_dark",
+                            hover_data=["Timeline date", "instrument", "signal"],
+                        )
+                        fig.update_layout(
+                            paper_bgcolor="#101a2b",
+                            plot_bgcolor="#101a2b",
+                            font=dict(color="#dce7fa"),
+                            title_font=dict(color="#f2f6ff"),
+                            yaxis=dict(range=[0, 100]),
+                            height=370,
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
+                        st.caption(
+                            "Forecasts are ordered by their outcome candle "
+                            "(or evaluation timestamp when missing), not "
+                            "by when a backtest would have generated them."
+                        )
+                else:
+                    st.info(
+                        "No evaluated BUY/SELL forecasts match these filters "
+                        "yet. Accuracy and its trend will appear once future "
+                        "outcomes have been recorded. Pending is not a loss."
+                    )
+                if focus_total:
+                    status_summary = (
+                        focused.groupby("status").size()
+                        .reindex(
+                            ["pending", "evaluated", "unavailable"],
+                            fill_value=0,
+                        ).rename_axis("Status").reset_index(name="Predictions")
+                    )
+                    status_summary = status_summary.loc[
+                        status_summary["Predictions"] > 0
+                    ]
+                    fig = px.bar(
+                        status_summary, x="Status", y="Predictions",
+                        text="Predictions",
+                        title="Forward prediction status in selection",
+                        template="plotly_dark",
+                    )
+                    fig.update_layout(
+                        paper_bgcolor="#101a2b",
+                        plot_bgcolor="#101a2b",
+                        font=dict(color="#dce7fa"),
+                        title_font=dict(color="#f2f6ff"),
+                        height=320, showlegend=False,
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.caption("No saved directional records match the filters.")
 
                 # --------------------------------------------
                 # FORWARD ACCURACY LEADERBOARD
