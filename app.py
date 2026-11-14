@@ -27,7 +27,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-APP_VERSION = "V3.7"
+APP_VERSION = "V3.8"
 MODEL_VERSION = BASELINE_VERSION
 
 
@@ -186,6 +186,14 @@ div[data-testid="stAlert"] {
 }
 [data-testid="stTabs"] [data-baseweb="tab-highlight"] {
     background-color: #79b7ff !important;
+}
+/* Improve visibility of editable numerical cost labels. */
+div[data-testid="stNumberInput"] label,
+div[data-testid="stNumberInput"] label *,
+div[data-testid="stNumberInput"] [data-testid="stWidgetLabel"],
+div[data-testid="stNumberInput"] [data-testid="stWidgetLabel"] * {
+    color: #c4d4ee !important;
+    opacity: 1 !important;
 }
 </style>
 """,
@@ -435,6 +443,7 @@ def backtest(df, horizon=5, spread_bps=0.0, slippage_bps=0.0, commission_bps=0.0
 
         results.append({
             "Signal time": str(df.index[i]),
+            "Exit time": str(df.index[i + horizon]),
             "Direction": "BUY" if side == 1 else "SELL",
             "Entry": entry,
             "Exit": exit_price,
@@ -1611,6 +1620,98 @@ elif page == "Historical Backtesting":
         st.caption(
             "No strategy is designated a winner: samples are small and this "
             "comparison has not been validated out-of-sample."
+        )
+
+        st.markdown("#### Chronological development vs holdout validation")
+        st.caption(
+            "A fixed calendar-order split is applied to the same candles for both models. "
+            "Indicator warm-up uses earlier candles only. Trades crossing the split are "
+            "excluded, so no development outcome finishes in the holdout window. "
+            "Both rules were already developed before this test: this is a "
+            "retrospective holdout comparison, NOT independent prospective validation."
+        )
+        development_pct = st.slider(
+            "Historical candles assigned to development (%)",
+            min_value=50, max_value=85, value=70, step=5,
+            key="historical_development_pct",
+        )
+        split_index = int(len(raw) * development_pct / 100)
+        split_index = min(max(split_index, 55), len(raw) - 1)
+        cutoff = pd.Timestamp(raw.index[split_index])
+        if cutoff.tzinfo is None:
+            cutoff = cutoff.tz_localize("UTC")
+        else:
+            cutoff = cutoff.tz_convert("UTC")
+        st.caption(
+            f"Holdout begins at {cutoff.date().isoformat()} "
+            f"(bar {split_index + 1} of {len(raw)}). "
+            "Holding period and trading-cost assumptions match the comparison above."
+        )
+
+        holdout_rows = []
+        for model_name, version, comparison_df in (
+            ("EMA + Engulfing", BASELINE_VERSION, baseline_df),
+            ("EMA + RSI + MACD", MOMENTUM_VERSION, momentum_df),
+        ):
+            all_trades = backtest(
+                comparison_df, horizon, spread_bps, slippage_bps, commission_bps
+            )
+            if all_trades.empty:
+                pieces = (("Development", all_trades), ("Holdout", all_trades))
+            else:
+                signal_dates = pd.to_datetime(all_trades["Signal time"], utc=True)
+                exit_dates = pd.to_datetime(all_trades["Exit time"], utc=True)
+                pieces = (
+                    ("Development", all_trades.loc[exit_dates < cutoff]),
+                    ("Holdout", all_trades.loc[signal_dates >= cutoff]),
+                )
+            for period_name, part in pieces:
+                n_part = len(part)
+                if not n_part:
+                    holdout_rows.append({
+                        "Strategy": model_name,
+                        "Period": period_name,
+                        "Trades": 0,
+                        "Net win %": None,
+                        "Avg net %": None,
+                        "Cumulative net %": None,
+                        "Max net drawdown %": None,
+                        "Net profit factor": "N/A",
+                        "Evidence": "No trades",
+                    })
+                    continue
+                rr = part["Net return %"].astype(float)
+                eq = (1 + rr / 100).cumprod()
+                peak = np.maximum.accumulate(np.r_[1.0, eq.to_numpy()])[1:]
+                gross_gain = rr[rr > 0].sum()
+                gross_loss = -rr[rr < 0].sum()
+                holdout_rows.append({
+                    "Strategy": model_name,
+                    "Period": period_name,
+                    "Trades": n_part,
+                    "Net win %": round(float(100 * (rr > 0).mean()), 1),
+                    "Avg net %": round(float(rr.mean()), 4),
+                    "Cumulative net %": round(float((eq.iloc[-1] - 1) * 100), 2),
+                    "Max net drawdown %": round(
+                        float(((eq.to_numpy() / peak) - 1).min() * 100), 2
+                    ),
+                    "Net profit factor": (
+                        f"{gross_gain / gross_loss:.2f}" if gross_loss > 0 else "N/A"
+                    ),
+                    "Evidence": "Small sample" if n_part < 30 else "Retrospective",
+                })
+        holdout_table = pd.DataFrame(holdout_rows)
+        st.dataframe(holdout_table, hide_index=True, use_container_width=True)
+        if any(row["Trades"] < 30 for row in holdout_rows):
+            st.warning(
+                "At least one segment contains fewer than 30 trades. "
+                "Do not infer an edge from its win rate or return; "
+                "these samples are particularly unstable."
+            )
+        st.caption(
+            "Changing the split after inspecting the results introduces selection bias. "
+            "Prices are Yahoo Finance historical proxies; future tracking in Supabase "
+            "remains the independent forward evaluation."
         )
 
         st.markdown("#### Statistical context")
