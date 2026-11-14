@@ -5,6 +5,7 @@ import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
 import yfinance as yf
+from signal_models import BASELINE_VERSION, MOMENTUM_VERSION, momentum_signals
 
 from datetime import datetime, timezone
 from prediction_store import (
@@ -26,8 +27,8 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-APP_VERSION = "V3.4"
-MODEL_VERSION = "ema20-ema50-engulf-v1"
+APP_VERSION = "V3.5"
+MODEL_VERSION = BASELINE_VERSION
 
 
 # ============================================================
@@ -659,6 +660,15 @@ tf = st.sidebar.selectbox(
     index=4,
 )
 
+strategy_label = st.sidebar.selectbox(
+    "Signal strategy",
+    ["EMA + Engulfing (original)", "EMA + RSI + MACD (experimental)"],
+    help="Compare separately versioned research rules. Performance is not guaranteed.",
+)
+MODEL_VERSION = (
+    MOMENTUM_VERSION if "experimental" in strategy_label else BASELINE_VERSION
+)
+
 horizon = st.sidebar.slider(
     "Backtest holding period (bars)",
     2,
@@ -704,6 +714,8 @@ if len(raw) < 60:
     st.stop()
 
 df = indicators(raw)
+if MODEL_VERSION == MOMENTUM_VERSION:
+    df["Buy"], df["Sell"] = momentum_signals(df)
 trades = backtest(df, horizon)
 result = stats(trades)
 
@@ -872,12 +884,12 @@ if page == "Trading Terminal":
 
     with center:
         signal_message = (
-            "EMA trend + engulfing confirmation"
-            if signal != "WAIT"
-            else (
-                "No confirmed EMA + engulfing setup "
-                "on the latest bar"
-            )
+            "EMA + RSI + MACD momentum confirmation"
+            if MODEL_VERSION == MOMENTUM_VERSION
+            else "EMA trend + engulfing confirmation"
+        ) if signal != "WAIT" else (
+            "No qualifying setup for the selected strategy on the latest bar"
+        )
         )
 
         st.markdown(
@@ -910,23 +922,25 @@ if page == "Trading Terminal":
         )
 
     with right:
-        signal_description = (
-            "Bullish EMA alignment and bullish body engulfing."
-            if signal == "BUY"
-            else (
-                "Bearish EMA alignment and bearish body engulfing."
-                if signal == "SELL"
-                else (
-                    "Waiting for both trend alignment and "
-                    "a qualifying engulfing candle."
-                )
+        if MODEL_VERSION == MOMENTUM_VERSION:
+            signal_description = (
+                "Experimental trend + RSI + MACD + candle-body confirmation."
+                if signal != "WAIT" else
+                "No qualified EMA, RSI and MACD momentum alignment."
             )
-        )
+        else:
+            signal_description = (
+                "Bullish EMA alignment and bullish body engulfing."
+                if signal == "BUY" else
+                "Bearish EMA alignment and bearish body engulfing."
+                if signal == "SELL" else
+                "Waiting for trend alignment and a qualifying engulfing candle."
+            )
 
         st.markdown(
             '<div class="terminal-card">'
             '<div class="card-label">'
-            "AI TRADE SIGNAL · RULE-BASED V3"
+            f"RESEARCH SIGNAL · {MODEL_VERSION}"
             "</div>"
             f'<div class="card-title {color_class}">'
             f"{signal}</div>"
@@ -1818,7 +1832,7 @@ elif page == "Prediction History":
         )
 
         st.write(
-            f"**{label}** · {tf} · {anchor_signal} · "
+            f"**{label}** · {tf} · {anchor_signal} · {strategy_label} · "
             f"reference close "
             f"{fmt_price(float(anchor.Close), market)}"
         )
