@@ -175,6 +175,15 @@ div[data-testid="stAlert"] {
 [data-testid="stTabs"] button[aria-selected="true"] span {
     color: #9dcbff !important;
 }
+[data-testid="stTabs"] [role="tab"],
+[data-testid="stTabs"] [role="tab"] * {
+    color: #c4d4ee !important;
+    opacity: 1 !important;
+}
+[data-testid="stTabs"] [role="tab"][aria-selected="true"],
+[data-testid="stTabs"] [role="tab"][aria-selected="true"] * {
+    color: #9dcbff !important;
+}
 [data-testid="stTabs"] [data-baseweb="tab-highlight"] {
     background-color: #79b7ff !important;
 }
@@ -512,6 +521,7 @@ def style_backtest(fig):
         height=400,
         margin=dict(l=28, r=24, t=62, b=42),
         showlegend=bool(fig.layout.showlegend),
+        legend=dict(font=dict(color="#e5efff", size=13), bgcolor="rgba(16,26,43,0.88)", bordercolor="#34445d", borderwidth=1),
         hovermode="x unified",
     )
 
@@ -1592,7 +1602,12 @@ elif page == "Historical Backtesting":
             })
 
         comparison_table = pd.DataFrame(comparison_rows)
-        st.dataframe(comparison_table, hide_index=True, use_container_width=True)
+        # Undefined ratios are not zero; make them readable in the display.
+        comparison_display = comparison_table.copy()
+        comparison_display["Net profit factor"] = comparison_display[
+            "Net profit factor"
+        ].apply(lambda value: f"{float(value):.2f}" if pd.notna(value) else "N/A")
+        st.dataframe(comparison_display, hide_index=True, use_container_width=True)
         st.caption(
             "No strategy is designated a winner: samples are small and this "
             "comparison has not been validated out-of-sample."
