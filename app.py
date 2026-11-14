@@ -1000,7 +1000,7 @@ if page == "Trading Terminal":
             f'<div class="signal-caption">{signal_message}</div>'
             "</div>"
             '<div class="signal-caption">'
-            f"Last candle: {df.index[-1]}"
+            f"Last completed candle used: {last_bar_time}"
             "</div></div>",
             unsafe_allow_html=True,
         )
