@@ -9,7 +9,10 @@ from datetime import datetime, timezone, timedelta
 import pandas as pd
 import yfinance as yf
 from prediction_store import config, list_predictions, save_prediction
-from signal_models import BASELINE_VERSION, MOMENTUM_VERSION, momentum_signals
+from signal_models import (
+    BASELINE_VERSION, MOMENTUM_VERSION, CHANNEL_VERSION,
+    SUPPLY_DEMAND_VERSION, apply_research_model,
+)
 
 MARKETS = {
     'EUR/USD':'EURUSD=X','GBP/USD':'GBPUSD=X','USD/JPY':'JPY=X',
@@ -64,12 +67,12 @@ def prediction(name, ticker, timeframe, df, model_version=BASELINE_VERSION):
             & (df.Open >= previous.Close) & (df.Close <= previous.Open))
     # Latest actually completed bar; never the forming daily candle.
     anchor = df.iloc[-1]
-    if model_version == MOMENTUM_VERSION:
-        buys, sells = momentum_signals(df)
-        buy, sell = bool(buys.iloc[-1]), bool(sells.iloc[-1])
-    else:
+    if model_version == BASELINE_VERSION:
         buy = anchor.EMA20 > anchor.EMA50 and bool(bull.iloc[-1])
         sell = anchor.EMA20 < anchor.EMA50 and bool(bear.iloc[-1])
+    else:
+        buys, sells = apply_research_model(df, model_version)
+        buy, sell = bool(buys.iloc[-1]), bool(sells.iloc[-1])
     signal = 'BUY' if buy else ('SELL' if sell else 'WAIT')
     at = pd.Timestamp(df.index[-1])
     at = at.tz_localize('UTC') if at.tzinfo is None else at.tz_convert('UTC')
@@ -107,7 +110,10 @@ def main():
                 print(f'ERROR downloading {name} {timeframe}: {type(exc).__name__}: {exc}')
                 continue
 
-            for model_version in (BASELINE_VERSION, MOMENTUM_VERSION):
+            for model_version in (
+                BASELINE_VERSION, MOMENTUM_VERSION,
+                CHANNEL_VERSION, SUPPLY_DEMAND_VERSION,
+            ):
                 try:
                     payload = prediction(name, ticker, timeframe, candles, model_version)
                     if payload is None:
