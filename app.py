@@ -187,6 +187,15 @@ div[data-testid="stAlert"] {
 [data-testid="stTabs"] [data-baseweb="tab-highlight"] {
     background-color: #79b7ff !important;
 }
+/* Keep action labels legible in both light and dark button variants. */
+[data-testid="stButton"] button[kind="secondary"],
+[data-testid="stDownloadButton"] button {
+    color: #172338 !important;
+}
+[data-testid="stButton"] button[kind="secondary"] *,
+[data-testid="stDownloadButton"] button * {
+    color: #172338 !important;
+}
 /* Ensure slider captions remain readable against the dark terminal theme. */
 div[data-testid="stSlider"] label,
 div[data-testid="stSlider"] label *,
@@ -3023,11 +3032,29 @@ elif page == "Prediction History":
                     if column in history.columns
                 ]
 
+                history_display = history[show].copy()
+                # Display empty outcomes clearly without changing stored values.
+                for nullable_col in (
+                    "outcome_close", "directional_return_pct", "correct"
+                ):
+                    if nullable_col in history_display:
+                        history_display[nullable_col] = history_display[
+                            nullable_col
+                        ].apply(
+                            lambda value: "—"
+                            if pd.isna(value)
+                            else (
+                                f"{value:.5f}"
+                                if isinstance(value, (int, float))
+                                and not isinstance(value, bool)
+                                else str(value)
+                            )
+                        )
                 st.dataframe(
-                    history[show],
+                    history_display,
                     use_container_width=True,
                     hide_index=True,
-                    height=420,
+                    height=min(420, 40 + 36 * (len(history_display) + 1)),
                 )
 
                 st.download_button(
