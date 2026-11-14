@@ -27,7 +27,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-APP_VERSION = "V4.1"
+APP_VERSION = "V4.2"
 MODEL_VERSION = BASELINE_VERSION
 
 
@@ -2685,6 +2685,129 @@ elif page == "Prediction History":
                 )
 
                 # --------------------------------------------
+                # FORWARD MONITORING: LIVE DATABASE RECORDS ONLY
+                # --------------------------------------------
+
+                st.markdown("### Forward prediction monitor")
+                st.caption(
+                    "These are genuine stored forecasts, not reconstructed "
+                    "historical signals. A prediction remains pending until "
+                    "the evaluator confirms its specified future outcome. "
+                    "No expected completion date is assumed because candles, "
+                    "weekends and provider updates vary."
+                )
+
+                directional_monitor = history[
+                    history["signal"].isin(["BUY", "SELL"])
+                ].copy()
+                monitored_count = len(directional_monitor)
+                monitored_pending = int(
+                    (directional_monitor["status"] == "pending").sum()
+                )
+                monitored_unavailable = int(
+                    (directional_monitor["status"] == "unavailable").sum()
+                )
+                monitored_evaluated = int(
+                    (directional_monitor["status"] == "evaluated").sum()
+                )
+
+                m1, m2, m3, m4 = st.columns(4)
+                m1.metric("Tracked BUY / SELL", monitored_count)
+                m2.metric("Awaiting outcome", monitored_pending)
+                m3.metric("Evaluated", monitored_evaluated)
+                m4.metric("Unavailable", monitored_unavailable)
+
+                if monitored_count:
+                    st.progress(
+                        monitored_evaluated / monitored_count,
+                        text=(
+                            f"Forward evaluation progress: "
+                            f"{monitored_evaluated} of {monitored_count} "
+                            "directional forecasts evaluated"
+                        ),
+                    )
+                    status_order = ("pending", "evaluated", "unavailable")
+                    monitor_grouped = (
+                        directional_monitor.groupby(
+                            ["model_version", "status"], dropna=False
+                        ).size().unstack(fill_value=0)
+                    )
+                    monitor_grouped = monitor_grouped.reindex(
+                        columns=list(status_order), fill_value=0
+                    )
+                    monitor_grouped["Total BUY/SELL"] = monitor_grouped.sum(axis=1)
+                    monitor_grouped["Evaluation %"] = (
+                        100 * monitor_grouped["evaluated"]
+                        / monitor_grouped["Total BUY/SELL"]
+                    ).round(1)
+                    monitor_grouped = monitor_grouped.reset_index()
+                    monitor_grouped = monitor_grouped.rename(columns={
+                        "model_version": "Strategy",
+                        "pending": "Pending",
+                        "evaluated": "Evaluated",
+                        "unavailable": "Unavailable",
+                    })
+
+                    st.markdown("#### Monitoring by strategy")
+                    st.dataframe(
+                        monitor_grouped,
+                        hide_index=True,
+                        use_container_width=True,
+                    )
+
+                    st.markdown("#### Individual forward predictions")
+                    recent = directional_monitor.copy()
+                    recent["recorded_at"] = pd.to_datetime(
+                        recent["recorded_at"], utc=True, errors="coerce"
+                    )
+                    recent["signal_bar_at"] = pd.to_datetime(
+                        recent["signal_bar_at"], utc=True, errors="coerce"
+                    )
+                    recent = recent.sort_values(
+                        "recorded_at", ascending=False, na_position="last"
+                    )
+                    recent["Days since recorded"] = (
+                        (pd.Timestamp.now(tz="UTC") - recent["recorded_at"])
+                        .dt.total_seconds().div(86400).clip(lower=0).round(1)
+                    )
+                    recent["Outcome"] = recent["status"].map({
+                        "pending": "Awaiting future candles",
+                        "evaluated": "Evaluated",
+                        "unavailable": "Data unavailable",
+                    }).fillna("Unknown")
+
+                    monitor_columns = [
+                        "recorded_at", "instrument", "signal",
+                        "model_version", "timeframe", "signal_bar_at",
+                        "horizon_bars", "status", "Days since recorded",
+                        "Outcome",
+                    ]
+                    st.dataframe(
+                        recent[monitor_columns].head(100),
+                        hide_index=True,
+                        use_container_width=True,
+                        height=300,
+                    )
+
+                    if monitored_pending:
+                        st.info(
+                            f"{monitored_pending} directional prediction(s) "
+                            "are pending. A pending record is not a loss, "
+                            "a win or proof of a failed evaluation."
+                        )
+                    st.caption(
+                        "The holding horizon counts subsequent candles, not "
+                        "calendar days. 'Days since recorded' is informational "
+                        "and is not an estimated settlement countdown."
+                    )
+                else:
+                    st.info(
+                        "No saved BUY/SELL predictions yet. "
+                        "WAIT is an abstention and is excluded from "
+                        "directional performance monitoring."
+                    )
+
+                # --------------------------------------------
                 # FORWARD ACCURACY LEADERBOARD
                 # --------------------------------------------
 
@@ -2736,8 +2859,7 @@ elif page == "Prediction History":
                 if leaderboard.empty:
                     st.info(
                         "No evaluated BUY/SELL predictions yet. "
-                        "Your evaluated WAIT prediction does not "
-                        "count as correct or incorrect."
+                        "WAIT predictions do not count as correct or incorrect."
                     )
 
                 else:
