@@ -27,7 +27,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-APP_VERSION = "V3.5"
+APP_VERSION = "V3.6"
 MODEL_VERSION = BASELINE_VERSION
 
 
@@ -437,9 +437,9 @@ def stats(trades):
 
     equity = (1 + returns / 100).cumprod()
 
-    drawdown = (
-        equity / equity.cummax() - 1
-    ) * 100
+    # Include initial capital when calculating peak-to-trough drawdown.
+    running_peak = np.maximum.accumulate(np.r_[1.0, equity.to_numpy()])[1:]
+    drawdown = (equity.to_numpy() / running_peak - 1) * 100
 
     return {
         "Trades": len(trades),
@@ -1390,6 +1390,20 @@ elif page == "Historical Backtesting":
         )
 
     else:
+        st.caption(f"Selected strategy: {strategy_label} · {MODEL_VERSION}")
+        sample_count = len(trades)
+        if sample_count < 30:
+            st.warning(
+                f"Limited sample: only {sample_count} completed historical trades. "
+                "Win rates and profit factors are unstable at this size. "
+                "Do not interpret them as a reliable trading edge."
+            )
+        else:
+            st.info(
+                f"{sample_count} retrospective trades analysed. "
+                "Results remain in-sample and exclude trading costs."
+            )
+
         returns = trades["Gross return %"].astype(float)
 
         equity = (1 + returns / 100).cumprod()
@@ -1465,6 +1479,29 @@ elif page == "Historical Backtesting":
             "reinvestment at 1× notional exposure. "
             "This is an illustrative gross price-return "
             "index, not a broker account equity curve."
+        )
+
+        st.markdown("#### Statistical context")
+        win_count = int((returns > 0).sum())
+        n = len(returns)
+        p_hat = win_count / n
+        # Wilson 95% interval, descriptive only; independence is not guaranteed.
+        z = 1.96
+        denom = 1 + z * z / n
+        center = (p_hat + z * z / (2 * n)) / denom
+        margin = (
+            z * np.sqrt(p_hat * (1 - p_hat) / n + z * z / (4 * n * n))
+            / denom
+        )
+        st.write(
+            f"Observed win rate: **{100 * p_hat:.1f}%** across **{n} trades**. "
+            f"Approximate Wilson 95% interval: **{100 * (center - margin):.1f}%–"
+            f"{100 * (center + margin):.1f}%**."
+        )
+        st.caption(
+            "This interval assumes independent, representative trade outcomes; "
+            "markets can violate these assumptions. It does not account for "
+            "strategy selection, changing conditions, or trading costs."
         )
 
         chart_tab, drawdown_tab, distribution_tab = st.tabs(
