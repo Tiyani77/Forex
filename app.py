@@ -27,7 +27,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-APP_VERSION = "V3.8"
+APP_VERSION = "V3.9"
 MODEL_VERSION = BASELINE_VERSION
 
 
@@ -1728,6 +1728,110 @@ elif page == "Historical Backtesting":
             "Prices are Yahoo Finance historical proxies; future tracking in Supabase "
             "remains the independent forward evaluation."
         )
+
+        st.markdown("#### V3.9 · Rolling chronological validation")
+        st.caption(
+            "Consecutive, non-overlapping evaluation windows for two fixed strategies. "
+            "Each window uses signals and outcomes entirely within its date range; "
+            "indicator values use only current and prior candles. This is a "
+            "walk-forward-style stability check, not a refitted predictive model "
+            "or independent forward validation."
+        )
+        window_count = st.select_slider(
+            "Number of chronological evaluation windows",
+            options=[3, 4, 5, 6],
+            value=4,
+            key="rolling_validation_windows",
+        )
+        first_bar = 50
+        last_bar = len(raw) - horizon
+        if last_bar - first_bar < window_count:
+            st.info("Not enough candles for chronological windows.")
+        else:
+            edges = np.linspace(
+                first_bar, last_bar, window_count + 1, dtype=int
+            )
+            rolling_rows = []
+            for name, version, model_df in (
+                ("EMA + Engulfing", BASELINE_VERSION, baseline_df),
+                ("EMA + RSI + MACD", MOMENTUM_VERSION, momentum_df),
+            ):
+                completed = backtest(
+                    model_df, horizon, spread_bps, slippage_bps, commission_bps
+                )
+                if completed.empty:
+                    signal_times = pd.Series(dtype="datetime64[ns, UTC]")
+                    exit_times = pd.Series(dtype="datetime64[ns, UTC]")
+                else:
+                    signal_times = pd.to_datetime(
+                        completed["Signal time"], utc=True
+                    )
+                    exit_times = pd.to_datetime(
+                        completed["Exit time"], utc=True
+                    )
+                for window in range(window_count):
+                    start = pd.Timestamp(raw.index[edges[window]])
+                    end = pd.Timestamp(raw.index[edges[window + 1]])
+                    start = start.tz_localize("UTC") if start.tzinfo is None else start.tz_convert("UTC")
+                    end = end.tz_localize("UTC") if end.tzinfo is None else end.tz_convert("UTC")
+                    # Enforce both signal and exit belong strictly to this window.
+                    if completed.empty:
+                        part = completed
+                    else:
+                        part = completed.loc[
+                            (signal_times >= start) & (exit_times < end)
+                        ]
+                    n_window = len(part)
+                    if n_window:
+                        values = part["Net return %"].astype(float)
+                        compounded = float((1 + values / 100).prod() - 1) * 100
+                        rolling_win = float((values > 0).mean() * 100)
+                    else:
+                        compounded = None
+                        rolling_win = None
+                    rolling_rows.append({
+                        "Strategy": name,
+                        "Window": window + 1,
+                        "Start": str(start.date()),
+                        "End (exclusive)": str(end.date()),
+                        "Trades": n_window,
+                        "Net win %": round(rolling_win, 1) if rolling_win is not None else None,
+                        "Cumulative net %": round(compounded, 3) if compounded is not None else None,
+                        "Evidence": "Small sample" if n_window else "No trades",
+                    })
+            rolling = pd.DataFrame(rolling_rows)
+            rolling_display = rolling.copy()
+            for col in ("Net win %", "Cumulative net %"):
+                rolling_display[col] = rolling_display[col].apply(
+                    lambda v: f"{float(v):.2f}" if pd.notna(v) else "N/A"
+                )
+            st.dataframe(
+                rolling_display, hide_index=True, use_container_width=True
+            )
+            chart_data = rolling.loc[rolling["Trades"] > 0].copy()
+            if not chart_data.empty:
+                chart_data["Window label"] = (
+                    "Window " + chart_data["Window"].astype(str)
+                )
+                fig = px.bar(
+                    chart_data, x="Window label", y="Cumulative net %",
+                    color="Strategy", barmode="group",
+                    title="Estimated net return by chronological window",
+                    template="plotly_dark",
+                )
+                fig.update_layout(
+                    paper_bgcolor="#101a2b", plot_bgcolor="#101a2b",
+                    font=dict(color="#dce7fa"),
+                    legend=dict(font=dict(color="#e5efff")),
+                    title_font=dict(color="#f2f6ff"),
+                    height=390,
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            st.warning(
+                "Rolling window results contain few trades and do not establish "
+                "predictive reliability. Window-specific compounding resets in "
+                "each segment, and outcomes crossing window edges are excluded."
+            )
 
         st.markdown("#### Statistical context")
         win_count = int((returns > 0).sum())
