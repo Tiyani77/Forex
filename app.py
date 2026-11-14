@@ -809,7 +809,14 @@ if MODEL_VERSION != BASELINE_VERSION:
 trades = backtest(df, horizon)
 result = stats(trades)
 
-last = df.iloc[-1]
+# Display signals from a completed candle, not an in-progress quote.
+terminal_bar_index = -2
+if tf == "1d":
+    latest_open_utc = pd.to_datetime(df.index[-1], utc=True)
+    if latest_open_utc + pd.Timedelta(days=1) <= pd.Timestamp.now(tz="UTC"):
+        terminal_bar_index = -1
+last = df.iloc[terminal_bar_index]
+last_bar_time = df.index[terminal_bar_index]
 
 label = (
     custom.strip().upper()
