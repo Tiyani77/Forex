@@ -1766,17 +1766,17 @@ elif page == "Historical Backtesting":
         )
 
         trade_history["Result"] = np.where(
-            trade_history["Gross return %"] > 0,
+            trade_history["Net return %"] > 0,
             "WIN",
             np.where(
-                trade_history["Gross return %"] < 0,
+                trade_history["Net return %"] < 0,
                 "LOSS",
                 "FLAT",
             ),
         )
 
         trade_history = trade_history.drop(
-            columns=["Win"]
+            columns=["Win", "Net win"]
         )
 
         st.dataframe(
@@ -1788,7 +1788,15 @@ elif page == "Historical Backtesting":
                 "Gross return %": st.column_config.NumberColumn(
                     "Gross return",
                     format="%.4f%%",
-                )
+                ),
+                "Estimated cost %": st.column_config.NumberColumn(
+                    "Estimated costs",
+                    format="%.4f%%",
+                ),
+                "Net return %": st.column_config.NumberColumn(
+                    "Estimated net return",
+                    format="%.4f%%",
+                ),
             },
         )
 
@@ -1800,9 +1808,9 @@ elif page == "Historical Backtesting":
         )
 
         st.warning(
-            "This is an in-sample gross-price simulation. "
-            "Spreads, fees, slippage and out-of-sample testing "
-            "must be added before interpreting profitability."
+            "This is an in-sample simulation with hypothetical trading "
+            "costs, not an executable broker performance record. "
+            "Out-of-sample validation is still required."
         )
 
 
