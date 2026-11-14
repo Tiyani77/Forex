@@ -27,7 +27,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-APP_VERSION = "V4.3"
+APP_VERSION = "V4.5"
 MODEL_VERSION = BASELINE_VERSION
 
 
@@ -2461,9 +2461,16 @@ elif page == "Prediction History":
             "### Save a new forward prediction"
         )
 
-        # Use penultimate candle as a conservative anchor.
-        anchor = df.iloc[-2]
-        anchor_time = pd.Timestamp(df.index[-2])
+        # For daily predictions use the latest completed candle, matching
+        # automatic collection. Other timeframes retain the conservative
+        # penultimate-candle convention.
+        anchor_index = -2
+        if tf == "1d":
+            latest_start = pd.to_datetime(df.index[-1], utc=True)
+            if latest_start + pd.Timedelta(days=1) <= pd.Timestamp.now(tz="UTC"):
+                anchor_index = -1
+        anchor = df.iloc[anchor_index]
+        anchor_time = pd.Timestamp(df.index[anchor_index])
 
         if anchor_time.tzinfo is None:
             anchor_time = anchor_time.tz_localize("UTC")
@@ -2807,7 +2814,9 @@ elif page == "Prediction History":
                     st.caption(
                         "The holding horizon counts subsequent candles, not "
                         "calendar days. 'Days since recorded' is informational "
-                        "and is not an estimated settlement countdown."
+                        "and is not an estimated settlement countdown. "
+                    "Unavailable may include late-recorded historical "
+                    "signals excluded from genuine forward scoring."
                     )
                 else:
                     st.info(
