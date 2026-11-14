@@ -60,16 +60,16 @@ class EvaluatorTests(unittest.TestCase):
         record, candles = sample()
         # Jan 7 is after the Jan 6 first subsequent bar has completed.
         record["recorded_at"] = "2026-01-07T10:00:00+00:00"
-        with patch.object(evaluator, "db_request") as db:
-            self.assertEqual(evaluator.evaluate_one(record, candles), "late_recording")
-            db.assert_not_called()
+        with patch.object(evaluator, "db_request", return_value=[{"id": "test-id"}]) as db:
+            self.assertEqual(evaluator.evaluate_one(record, candles), "late_recording_unavailable")
+            self.assertEqual(db.call_args.kwargs["payload"]["status"], "unavailable")
 
     def test_already_closed_outcome_is_not_scored(self):
         record, candles = sample()
         record["recorded_at"] = "2026-01-12T12:00:00+00:00"
-        with patch.object(evaluator, "db_request") as db:
-            self.assertEqual(evaluator.evaluate_one(record, candles), "late_recording")
-            db.assert_not_called()
+        with patch.object(evaluator, "db_request", return_value=[{"id": "test-id"}]) as db:
+            self.assertEqual(evaluator.evaluate_one(record, candles), "late_recording_unavailable")
+            self.assertEqual(db.call_args.kwargs["payload"]["status"], "unavailable")
 
     def test_wait_for_horizon(self):
         record, candles = sample()
