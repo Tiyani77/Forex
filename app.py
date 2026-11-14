@@ -1234,7 +1234,12 @@ if page == "Trading Terminal":
         height=520,
         margin=dict(l=8, r=8, t=35, b=10),
         xaxis_rangeslider_visible=False,
-        legend=dict(orientation="h", y=1.09),
+        legend=dict(
+            orientation="h", y=1.09,
+            font=dict(color="#edf3ff", size=13),
+            bgcolor="rgba(17,27,44,0.95)",
+            bordercolor="#34445d", borderwidth=1,
+        ),
         font=dict(color="#d7e5fa"),
     )
 
