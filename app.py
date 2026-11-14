@@ -890,7 +890,6 @@ if page == "Trading Terminal":
         ) if signal != "WAIT" else (
             "No qualifying setup for the selected strategy on the latest bar"
         )
-        )
 
         st.markdown(
             '<div class="terminal-card">'
