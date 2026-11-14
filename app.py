@@ -511,7 +511,7 @@ def style_backtest(fig):
         yaxis=dict(title_font=dict(color="#b9cae5"), tickfont=dict(color="#b9cae5")),
         height=400,
         margin=dict(l=28, r=24, t=62, b=42),
-        showlegend=False,
+        showlegend=bool(fig.layout.showlegend),
         hovermode="x unified",
     )
 
@@ -1543,6 +1543,59 @@ elif page == "Historical Backtesting":
             "across non-overlapping trades. This is an illustrative return index, "
             "not a broker account. Estimates exclude swap, financing, market "
             "impact, changing spreads and currency conversion."
+        )
+
+        st.markdown("#### Compare both strategies on identical price history")
+        st.caption(
+            "Both strategies use the same fetched candles, holding period, "
+            "next-open entries, and cost assumptions. Trade dates and counts "
+            "may differ. This is an in-sample, retrospective comparison."
+        )
+        baseline_df = indicators(raw)
+        momentum_df = baseline_df.copy()
+        momentum_df["Buy"], momentum_df["Sell"] = momentum_signals(momentum_df)
+
+        comparison_rows = []
+        for model_name, version, comparison_df in (
+            ("EMA + Engulfing", BASELINE_VERSION, baseline_df),
+            ("EMA + RSI + MACD", MOMENTUM_VERSION, momentum_df),
+        ):
+            compared = backtest(
+                comparison_df, horizon, spread_bps, slippage_bps, commission_bps
+            )
+            if compared.empty:
+                comparison_rows.append({
+                    "Strategy": model_name, "Model": version, "Trades": 0,
+                    "Gross win %": None, "Net win %": None,
+                    "Avg net %": None, "Cumulative net %": None,
+                    "Max net drawdown %": None, "Net profit factor": None,
+                })
+                continue
+
+            cr = compared["Net return %"].astype(float)
+            cg = compared["Gross return %"].astype(float)
+            ce = (1 + cr / 100).cumprod()
+            cp = np.maximum.accumulate(np.r_[1.0, ce.to_numpy()])[1:]
+            gains = cr[cr > 0].sum()
+            losses = -cr[cr < 0].sum()
+            comparison_rows.append({
+                "Strategy": model_name,
+                "Model": version,
+                "Trades": len(cr),
+                "Gross win %": round(100 * (cg > 0).mean(), 1),
+                "Net win %": round(100 * (cr > 0).mean(), 1),
+                "Avg net %": round(float(cr.mean()), 4),
+                "Cumulative net %": round(float((ce.iloc[-1] - 1) * 100), 2),
+                "Max net drawdown %": round(float(((ce.to_numpy() / cp) - 1).min() * 100), 2),
+                "Net profit factor": round(float(gains / losses), 2)
+                if losses > 0 else None,
+            })
+
+        comparison_table = pd.DataFrame(comparison_rows)
+        st.dataframe(comparison_table, hide_index=True, use_container_width=True)
+        st.caption(
+            "No strategy is designated a winner: samples are small and this "
+            "comparison has not been validated out-of-sample."
         )
 
         st.markdown("#### Statistical context")
