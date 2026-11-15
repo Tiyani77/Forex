@@ -102,6 +102,35 @@ def supply_demand_rejection_signals(candles):
     return buy.fillna(False).astype(bool), sell.fillna(False).astype(bool)
 
 
+# Corrected V5.2 channel model. V1 remains unchanged for auditability.
+# In v1 the bearish EMA slope comparison pointed the wrong way, so the
+# revised model must get a fresh version ID for independently scored records.
+CHANNEL_V2_VERSION = "weaver-channel-breakout-v2"
+
+
+def channel_breakout_v2_signals(candles):
+    """Fixed bearish trend slope; all other published v1 thresholds retained."""
+    close = candles["Close"]
+    ema20 = close.ewm(span=20, adjust=False).mean()
+    ema50 = close.ewm(span=50, adjust=False).mean()
+    prior_high = candles["High"].shift(1).rolling(20, min_periods=20).max()
+    prior_low = candles["Low"].shift(1).rolling(20, min_periods=20).min()
+    atr = _atr(candles)
+    body = (close - candles["Open"]).abs()
+    warm = pd.Series(range(len(candles)), index=candles.index) >= 60
+    buy = (
+        warm & (close > prior_high) & (ema20 > ema50)
+        & (ema20 > ema20.shift(3))
+        & (close > candles["Open"]) & (body >= 0.25 * atr)
+    )
+    sell = (
+        warm & (close < prior_low) & (ema20 < ema50)
+        & (ema20 < ema20.shift(3))
+        & (close < candles["Open"]) & (body >= 0.25 * atr)
+    )
+    return buy.fillna(False).astype(bool), sell.fillna(False).astype(bool)
+
+
 # V5.2: operationalised market-structure breakout plus retest.
 # Structural level on signal bar uses the highest high / lowest low of the
 # prior 20 bars (excludes current bar) and a previous structural breach.
@@ -177,6 +206,7 @@ MODEL_LABELS = {
     BASELINE_VERSION: "EMA + Engulfing (original)",
     MOMENTUM_VERSION: "EMA + RSI + MACD (experimental)",
     CHANNEL_VERSION: "Channel Breakout (book-informed research)",
+    CHANNEL_V2_VERSION: "Channel Breakout V2 (corrected research)",
     SUPPLY_DEMAND_VERSION: "Supply/Demand Rejection (book-informed research)",
     STRUCTURE_VERSION: "Market Structure Retest (Falcon-inspired research)",
 }
@@ -188,6 +218,8 @@ def apply_research_model(candles, model_version):
         return momentum_signals(candles)
     if model_version == CHANNEL_VERSION:
         return channel_breakout_signals(candles)
+    if model_version == CHANNEL_V2_VERSION:
+        return channel_breakout_v2_signals(candles)
     if model_version == SUPPLY_DEMAND_VERSION:
         return supply_demand_rejection_signals(candles)
     if model_version == STRUCTURE_VERSION:
