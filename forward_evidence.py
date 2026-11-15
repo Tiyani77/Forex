@@ -1,4 +1,4 @@
-"""V6.0 — auditable forward-only prediction evidence report.
+"""V6.1 — auditable forward-only prediction evidence report.
 
 Read-only Supabase REST, no model updates, credentials never printed.
 This report does not equate historical simulations with recorded forecasts.
@@ -205,7 +205,7 @@ def main():
     summary = summarise_forward(records)
     summary.to_csv(output / "forward_model_evidence.csv", index=False)
     (output / "forward_evidence_notes.txt").write_text(
-        "V6.0 FORWARD EVIDENCE — NOT BROKER VERIFIED PROFITABILITY\n"
+        "V6.1 FORWARD EVIDENCE — NOT BROKER VERIFIED PROFITABILITY\n"
         "Only evaluated BUY/SELL records with valid correctness and temporal "
         "fields count toward model accuracy. WAIT and unavailable do not.\n"
         "95% Wilson intervals ignore correlation across markets and dates. "
@@ -215,9 +215,11 @@ def main():
         "minimum review gate, not proof of accuracy or profitability.\n"
         "Saved directional correctness compares signal-bar reference close "
         "with outcome close; it is not next-open executable net P&L.\n"
+        "Registered models with no saved BUY/SELL predictions are shown "
+        "as NO_SAVED_SIGNALS. Collector intentionally skips WAIT by default.\n"
         f"Records read: {len(records)}.\n"
     )
-    print("V6.0 FORWARD EVIDENCE: no model automatically approved")
+    print("V6.1 FORWARD EVIDENCE: all registered models shown, none automatically approved")
     print(summary.to_string(index=False))
 
 
