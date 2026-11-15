@@ -121,3 +121,29 @@ This distinction is essential: the independently saved forward-prediction `corre
 The script reports number of actual trades and markets with trades. If a model has no trades, do **not** interpret NaN / missing metrics as zero accuracy. Changing the horizon changes non-overlapping trade selection, so differences are scenario sensitivity, not a controlled causal claim.
 
 Outputs: `v54_sensitivity_by_market.csv`, `v54_sensitivity_summary.csv`, `v54_notes.txt`. A positive result after exploring these scenarios is **not** prospective validation; only forecasts timestamped before outcomes can provide that evidence.
+
+## V5.4 sensitivity evidence (supplied 2026-11-15)
+
+The V5.4 15-market robustness report investigated 2, 5 and 10 daily-bar holding periods, and 0, 4, 10 bps indicative costs. These were retrospective *later-period diagnostics*, not actual recorded forward predictions.
+
+Key observations at **4 bps**:
+- Momentum: 520 / 342 / 239 trades at 2 / 5 / 10 bars, with respective median market mean net returns **-0.05602%, -0.08150%, -0.13741%**.
+- Original EMA+Engulfing: only 10 trades at each horizon, median market mean net **+0.09945%, +0.29141%, -0.02597%**. This is a **tiny sample across 7 active markets**, not a robust winner.
+- Falcon retest: 34 / 30 / 30 trades with median net means **-0.12214%, -0.11618%, -0.13173%**.
+- Supply/demand rejection: 144 / 124 / 107 trades with median net means **-0.08144%, -0.10548%, -0.04521%**.
+- Liquidity sweep: 45 / 44 / 41 trades with median net means **-0.11371%, -0.39391%, -0.50284%**.
+- Channel breakout: zero later-period trades at all three horizons.
+
+All six models are either showing negative central returns in the inspected sample or insufficient observations; none has earned a forward-accuracy or profitability claim. Market medians and sample counts must be reported together.
+
+## V5.5: Conservative model readiness audit
+
+`research_release_audit.py` consumes `v54_sensitivity_by_market.csv`, checks coverage and duplicates, and produces `v55_release_audit.csv` and explanatory notes with a **NOT_VALIDATED** status for every strategy. It does not select a default, fit parameters, alter versioned signal rules or update the Supabase database.
+
+Diagnosis thresholds are descriptive guardrails, **not statistical acceptance tests**:
+- Fewer than 50 historical trades at five bars/four bps **or** fewer than 10 active markets: `INSUFFICIENT_SAMPLE`.
+- Non-positive median per-active-market average net result: `NEGATIVE_HISTORICAL_MEDIAN`.
+- If historically positive only in part of the predeclared horizons: `HORIZON_SENSITIVE_EXPLORATORY`.
+- Positive medians in all inspected horizons: `POSITIVE_HISTORICAL_DIAGNOSTIC_ONLY`, **still NOT VALIDATED**.
+
+Release acceptance in the future requires a well-defined, timestamped, truly forward dataset, realistic costs, accounting for overlapping/correlated currency exposures, sufficient samples and repeatable performance. This is research software: its completion does not imply that trading profits or prediction accuracy are guaranteed.
