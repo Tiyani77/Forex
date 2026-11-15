@@ -32,7 +32,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-APP_VERSION = "V5.4 Research"
+APP_VERSION = "V5.5 Research"
 MODEL_VERSION = BASELINE_VERSION
 
 
@@ -758,6 +758,12 @@ strategy_label = st.sidebar.selectbox(
 MODEL_VERSION = next(
     version for version, name in MODEL_LABELS.items()
     if name == strategy_label
+)
+
+st.sidebar.warning(
+    "Research model — NOT VALIDATED. BUY/SELL is a rules-based "
+    "historical-candle signal, not a reliable probability estimate "
+    "or a recommendation to trade."
 )
 
 horizon = st.sidebar.slider(
