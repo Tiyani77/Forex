@@ -70,3 +70,33 @@ New independently versioned `falcon-structure-retest-v1` candidate:
 **Important correction:** An initial diagnosis of a SELL EMA-slope issue in channel breakout v1 was mistaken: inspection confirms v1 already requires a falling EMA20 for SELL. A redundant proposed v2 was removed before release. Do not describe the existing channel model as containing a bearish-slope bug.
 
 Next validation: re-run Research V5 Strategy Benchmarks, compare trade frequency and estimated net performance across markets, and collect future predictions for independent forward evaluation. No model is promoted or labelled more accurate based on these findings alone.
+
+## V5.2 diagnostic results (reported 2026-11-15)
+
+The same 15 FX pairs, five-year daily candles, five-bar horizon and 4 bps assumed transaction costs yielded:
+
+| Version | Later-period trades | Median market net win rate | Median market average net return | Positive-mean markets |
+| --- | ---: | ---: | ---: | ---: |
+| `falcon-structure-retest-v1` | 30 | 33.33% | -0.11618% | 6/15 |
+
+Its earlier development window had 19 trades in 11 markets, median market net win rate 0%, and median average net return -0.36270%. This *does not establish* an advantage. The later period was examined during development; it should not be described as untouched or prospective evidence for new versions.
+
+## V5.3: Liquidity sweep + reclaim research candidate
+
+**Version:** `liquidity-sweep-reclaim-v1` — distinct from all earlier versions.
+
+A causal mechanical approximation of liquidity sweeps / false breakouts, broadly related to price-action and structural level concepts from the supplied trading books. **Not** a faithful representation of discretionary order flow, institutionally verified liquidity, or the complete Falcon/Lebin approaches.
+
+Signal-bar requirements (evaluated at completed candle close):
+
+- Prior reference high/low: extreme of the **previous 15 candles** only (the current candle is excluded with `shift(1)`).
+- BUY: low breaks previous 15-bar low, then closes **back above** that level; bullish candle, close in upper half, lower wick >= 0.15 × ATR(14), EMA20 nondecreasing over three candles.
+- SELL: high breaks previous 15-bar high, then closes **back below** that level; bearish candle, close in lower half, upper wick >= 0.15 × ATR(14), EMA20 nonincreasing over three candles.
+- At least 60 candles of prior warm-up; otherwise WAIT. No look-ahead or future bar confirmation.
+- Default research benchmark: trade next candle open and close five bars after the signal, with a fixed 4 bps indicative round-trip cost.
+
+The 15-bar threshold and other numerical conditions are **research assumptions**, not numbers quoted from the books. They were fixed when the candidate was written and are not claimed to have an empirically established edge.
+
+### Evaluation gates
+
+The research workflow runs no-look-ahead/unit checks and produces chronological comparisons on the same 15 markets; such retrospective diagnostics are *not* independent prospective evidence. The existing strategy versions and stored predictions remain untouched. A useful live confidence claim requires accumulating genuine new, versioned forward predictions and accounting for correlation, uncertain win-rate intervals, trading costs and risk.
