@@ -42,6 +42,7 @@ jobs:
           python -m compileall -q signal_models.py research_multimarket.py tests
           python -m unittest discover -s tests -p 'test_book_strategies.py' -v
           python -m unittest discover -s tests -p 'test_multimarket_research.py' -v
+          python -m unittest discover -s tests -p 'test_liquidity_sweep.py' -v
 
       - name: Run FX multi-market diagnostic
         run: |
