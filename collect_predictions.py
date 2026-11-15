@@ -11,7 +11,8 @@ import yfinance as yf
 from prediction_store import config, list_predictions, save_prediction
 from signal_models import (
     BASELINE_VERSION, MOMENTUM_VERSION, CHANNEL_VERSION,
-    SUPPLY_DEMAND_VERSION, STRUCTURE_VERSION, apply_research_model,
+    SUPPLY_DEMAND_VERSION, STRUCTURE_VERSION, CHANNEL_V2_VERSION,
+    apply_research_model,
 )
 
 MARKETS = {
@@ -112,7 +113,8 @@ def main():
 
             for model_version in (
                 BASELINE_VERSION, MOMENTUM_VERSION,
-                CHANNEL_VERSION, SUPPLY_DEMAND_VERSION, STRUCTURE_VERSION,
+                CHANNEL_VERSION, CHANNEL_V2_VERSION,
+                SUPPLY_DEMAND_VERSION, STRUCTURE_VERSION,
             ):
                 try:
                     payload = prediction(name, ticker, timeframe, candles, model_version)
