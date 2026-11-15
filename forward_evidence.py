@@ -12,6 +12,8 @@ from urllib.parse import urlsplit
 import pandas as pd
 import requests
 
+from signal_models import MODEL_LABELS
+
 FIELDS = (
     "id,recorded_at,instrument,ticker,timeframe,signal,model_version,"
     "signal_bar_at,horizon_bars,status,correct,directional_return_pct,"
@@ -101,7 +103,10 @@ def summarise_forward(records):
         "wait_total", "invalid_evaluated", "evidence_status",
     ]
     if data.empty:
-        return pd.DataFrame(columns=columns)
+        data = pd.DataFrame(columns=[
+            "id", "model_version", "status", "signal", "ticker",
+            "timeframe", "correct", "recorded_at", "outcome_bar_at"
+        ])
     for col in ("model_version", "status", "signal", "ticker",
                 "timeframe", "correct", "recorded_at", "outcome_bar_at"):
         if col not in data:
@@ -119,7 +124,15 @@ def summarise_forward(records):
         data["outcome_bar_at"], errors="coerce", utc=True
     )
     rows = []
-    for model, group in data.groupby("model_version", dropna=False):
+    # Include every registered model, even if none of its forecasts has
+    # qualified for database storage yet (WAITs are skipped by default).
+    all_versions = list(MODEL_LABELS)
+    all_versions.extend(
+        x for x in data["model_version"].dropna().unique()
+        if x not in MODEL_LABELS
+    )
+    for model in all_versions:
+        group = data.loc[data["model_version"] == model].copy()
         directional = group.loc[group.signal.isin(["BUY", "SELL"])].copy()
         evaluated = directional.loc[directional.status == "evaluated"].copy()
         evaluated["confirmed"] = evaluated["correct"].map(_as_bool)
@@ -153,7 +166,10 @@ def summarise_forward(records):
         # These are diagnostic thresholds, not a statistical guarantee
         # or evidence of independence across correlated FX pairs.
         if n == 0:
-            status = "NO_EVALUATED_FORWARD_SIGNALS"
+            status = (
+                "NO_SAVED_SIGNALS" if len(group) == 0
+                else "NO_EVALUATED_FORWARD_SIGNALS"
+            )
         elif n < 100 or markets < 10:
             status = "INSUFFICIENT_FORWARD_EVIDENCE"
         else:
