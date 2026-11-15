@@ -7,7 +7,8 @@ import plotly.express as px
 import yfinance as yf
 from signal_models import (
     BASELINE_VERSION, MOMENTUM_VERSION, CHANNEL_VERSION,
-    SUPPLY_DEMAND_VERSION, MODEL_LABELS, momentum_signals,
+    SUPPLY_DEMAND_VERSION, STRUCTURE_VERSION, LIQUIDITY_SWEEP_VERSION,
+    MODEL_LABELS, momentum_signals,
     apply_research_model,
 )
 
@@ -31,7 +32,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-APP_VERSION = "V5.2 Research"
+APP_VERSION = "V5.3 Research"
 MODEL_VERSION = BASELINE_VERSION
 
 
@@ -1016,7 +1017,7 @@ if page == "Trading Terminal":
         )
 
     with right:
-        if MODEL_VERSION in (CHANNEL_VERSION, SUPPLY_DEMAND_VERSION):
+        if MODEL_VERSION in (CHANNEL_VERSION, SUPPLY_DEMAND_VERSION, STRUCTURE_VERSION, LIQUIDITY_SWEEP_VERSION):
             signal_description = (
                 "Book-informed price-structure research candidate. "
                 "Not a verified forecasting advantage."
