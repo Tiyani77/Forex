@@ -173,12 +173,57 @@ def structure_retest_signals(candles):
     )
 
 
+# V5.3: liquidity-sweep and reclaim research candidate. This is a
+# mechanical wick/rejection proxy, not an identified institutional order.
+LIQUIDITY_SWEEP_VERSION = "liquidity-sweep-reclaim-v1"
+
+
+def liquidity_sweep_reclaim_signals(candles):
+    """Detect a completed-bar run beyond a PRIOR extreme and rejection.
+
+    BUY: current low sweeps the lowest low of the preceding 15 candles,
+    the close reclaims that level, the candle is bullish and closes in
+    its upper half, the lower wick >= 0.15 ATR(14), and EMA20 is not
+    falling over three bars. SELL is symmetric for the prior high.
+
+    Only information on/before the signal bar is used; a wick touching
+    an extreme without a close back inside does not qualify.
+    """
+    high, low = candles["High"], candles["Low"]
+    open_, close = candles["Open"], candles["Close"]
+    prior_low = low.shift(1).rolling(15, min_periods=15).min()
+    prior_high = high.shift(1).rolling(15, min_periods=15).max()
+    ema20 = close.ewm(span=20, adjust=False).mean()
+    atr = _atr(candles)
+    span = high - low
+    lower_wick = open_.where(open_ < close, close) - low
+    upper_wick = high - open_.where(open_ > close, close)
+    valid = (
+        pd.Series(range(len(candles)), index=candles.index).ge(60)
+        & (span > 0) & (atr > 0)
+    )
+    buy = (
+        valid & (low < prior_low) & (close > prior_low)
+        & (close > open_) & (close >= low + 0.5 * span)
+        & (lower_wick >= 0.15 * atr)
+        & (ema20 >= ema20.shift(3))
+    )
+    sell = (
+        valid & (high > prior_high) & (close < prior_high)
+        & (close < open_) & (close <= high - 0.5 * span)
+        & (upper_wick >= 0.15 * atr)
+        & (ema20 <= ema20.shift(3))
+    )
+    return buy.fillna(False).astype(bool), sell.fillna(False).astype(bool)
+
+
 MODEL_LABELS = {
     BASELINE_VERSION: "EMA + Engulfing (original)",
     MOMENTUM_VERSION: "EMA + RSI + MACD (experimental)",
     CHANNEL_VERSION: "Channel Breakout (book-informed research)",
     SUPPLY_DEMAND_VERSION: "Supply/Demand Rejection (book-informed research)",
     STRUCTURE_VERSION: "Market Structure Retest (Falcon-inspired research)",
+    LIQUIDITY_SWEEP_VERSION: "Liquidity Sweep + Reclaim (V5.3 research)",
 }
 
 
@@ -192,4 +237,6 @@ def apply_research_model(candles, model_version):
         return supply_demand_rejection_signals(candles)
     if model_version == STRUCTURE_VERSION:
         return structure_retest_signals(candles)
+    if model_version == LIQUIDITY_SWEEP_VERSION:
+        return liquidity_sweep_reclaim_signals(candles)
     raise ValueError(f"Unsupported research model: {model_version}")
