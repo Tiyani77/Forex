@@ -9,7 +9,7 @@ def record(model, signal="BUY", status="evaluated", correct=True,
            outcome_bar_at="2026-01-08T00:00:00Z"):
     return {
         "id": ident, "model_version": model,
-        "ticker": ticker, "signal": signal,
+        "ticker": ticker, "signal": signal, "timeframe": "1d",
         "status": status, "correct": correct,
         "recorded_at": recorded_at,
         "outcome_bar_at": outcome_bar_at,
@@ -47,6 +47,16 @@ class ForwardEvidenceTests(unittest.TestCase):
         ]).iloc[0]
         self.assertEqual(row.evaluated_directional, 0)
         self.assertEqual(row.invalid_evaluated, 1)
+
+    def test_recorded_during_outcome_candle_before_close(self):
+        # Allowed for a 1-bar horizon when it was first recorded
+        # while the next daily outcome candle was still forming.
+        row = summarise_forward([
+            record("m", ident="1",
+                   recorded_at="2026-01-08T06:00:00Z",
+                   outcome_bar_at="2026-01-08T00:00:00Z")
+        ]).iloc[0]
+        self.assertEqual(row.evaluated_directional, 1)
 
     def test_duplicate_id_not_double_counted(self):
         item = record("m", ident="same")
