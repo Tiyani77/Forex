@@ -33,3 +33,19 @@ The report marks:
 GitHub Actions → **V6 Forward Prediction Evidence** → **Run workflow**. Inspect `V6.0 FORWARD EVIDENCE` logs. Download `v6-forward-evidence` artifact for `forward_model_evidence.csv`.
 
 Do not select a winning strategy from this report unless both sample adequacy and independent review are achieved. The automatic weekly audit is informational, not a trading system.
+
+
+## V6.1: Checking whether forward signals are actually collected
+
+The first V6.0 report (2026-11-15) showed only five pre-existing records:
+- `ema-rsi-momentum-v1`: four recorded BUY/SELL forecasts, all still pending.
+- `ema20-ema50-engulf-v1`: one WAIT (abstention), no scored forecast.
+- All four newer book-informed strategies: no saved directional forecasts yet.
+
+This does not prove a data collector outage. The automated collector runs at **06:15 UTC every calendar day**, and default collection intentionally skips WAIT signals. In addition, each directional prediction has a **five-completed-daily-bar** evaluation horizon; Nov 12–13 forecasts may legitimately await several weekday bars after the weekend.
+
+V6.1 adds per-version `BUY / SELL / WAIT` counts to the collection logs without storing WAITs as wins. A GitHub Actions **Collect forward predictions** manual run defaults to `dry_run=true`: it **does not write to Supabase** and should produce the counts in the job log. Do not make repeated manual runs with `dry_run=false` on stale bars merely to inflate the database; versioned data must remain truly forward.
+
+Evaluate stored forecasts with **Evaluate Forex Predictions** when sufficient daily candles have completed. Rerun **V6 Forward Prediction Evidence** afterward to see whether evaluated directional sample counts increase.
+
+A successful log with mostly WAIT signals is evidence of model selectivity, not a signal-collection failure. The app should not promise that any particular number of forecasts will be produced each day.
