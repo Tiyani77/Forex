@@ -35,7 +35,7 @@ class LiquiditySweepTests(unittest.TestCase):
     def test_no_reclaim_means_no_signal(self):
         frame = self.candles()
         frame.loc[frame.index[80], ["Open", "High", "Low", "Close"]] = [
-            100.0, 100.8, 98.0, 98.5
+            100.0, 100.4, 98.0, 98.5
         ]
         buys, sells = apply_research_model(frame, LIQUIDITY_SWEEP_VERSION)
         self.assertFalse(bool(buys.iloc[80]))
