@@ -32,7 +32,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-APP_VERSION = "V5.5 Research"
+APP_VERSION = "V6.0 Forward Evidence"
 MODEL_VERSION = BASELINE_VERSION
 
 
@@ -764,6 +764,10 @@ st.sidebar.warning(
     "Research model — NOT VALIDATED. BUY/SELL is a rules-based "
     "historical-candle signal, not a reliable probability estimate "
     "or a recommendation to trade."
+)
+st.sidebar.caption(
+    "V6.0 adds a read-only GitHub Actions forward-evidence audit. "
+    "Historical simulations and signal confidence remain distinct."
 )
 
 horizon = st.sidebar.slider(
