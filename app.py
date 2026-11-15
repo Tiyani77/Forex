@@ -31,7 +31,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-APP_VERSION = "V5.0 Research"
+APP_VERSION = "V5.2 Research"
 MODEL_VERSION = BASELINE_VERSION
 
 
