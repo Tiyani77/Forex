@@ -100,3 +100,24 @@ The 15-bar threshold and other numerical conditions are **research assumptions**
 ### Evaluation gates
 
 The research workflow runs no-look-ahead/unit checks and produces chronological comparisons on the same 15 markets; such retrospective diagnostics are *not* independent prospective evidence. The existing strategy versions and stored predictions remain untouched. A useful live confidence claim requires accumulating genuine new, versioned forward predictions and accounting for correlation, uncertain win-rate intervals, trading costs and risk.
+
+## V5.3 diagnostic observed on 2026-11-15
+
+The 15-pair daily V5.3 benchmark reports:
+- `liquidity-sweep-reclaim-v1`: **44 later-period trades** across 14 markets; median market net win rate **10.00%**, median market average net return **-0.39391%**, only **2/15** positive-mean markets.
+- Its development-period sample was 13 trades across 7 markets, median net win rate 0%, median market mean net -0.21519%.
+- **No benefit is established.** Do not automatically make liquidity-sweep predictions the default. Do not tune numerical levels merely to fit the repeatedly inspected 15-pair data.
+
+## V5.4: predeclared robustness checks
+
+The dedicated `Research V5.4 Predictor Robustness` GitHub Actions workflow tests **all existing versioned models without modifying their signal rules**. Predeclared axes are holding horizons of **2, 5, 10 daily bars** and approximate round-trip trading costs of **0, 4, 10 basis points**. A chronological 70/30 development/later-period split is retained, but we only report the later-period diagnostics because this period has already been observed by the developer.
+
+**Two different measurements are shown**:
+- Gross direction-correct rate: share of simulated trades whose entry-to-exit price change favoured the model's chosen BUY/SELL direction, *without* cost deductions.
+- Net win rate: share with a positive simulated net return *after* the declared basis-point cost.
+
+This distinction is essential: the independently saved forward-prediction `correct` field is based on signal-close to outcome-close direction, while historical simulation here uses **next-bar open** for entry; they are not directly interchangeable.
+
+The script reports number of actual trades and markets with trades. If a model has no trades, do **not** interpret NaN / missing metrics as zero accuracy. Changing the horizon changes non-overlapping trade selection, so differences are scenario sensitivity, not a controlled causal claim.
+
+Outputs: `v54_sensitivity_by_market.csv`, `v54_sensitivity_summary.csv`, `v54_notes.txt`. A positive result after exploring these scenarios is **not** prospective validation; only forecasts timestamped before outcomes can provide that evidence.
