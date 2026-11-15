@@ -1,6 +1,7 @@
-"""Collect forward predictions using the app's EMA/engulfing rule.
+"""Collect separately versioned forward research signals on completed bars.
 
-Run with --dry-run first. Requires prediction_store.py in repository root.
+Run with --dry-run to preview. WAIT signals are counted but not saved by
+default. Historical completed bars are not backfilled as new predictions.
 """
 import argparse
 import sys
@@ -102,6 +103,9 @@ def main():
                           str(pd.Timestamp(rec['signal_bar_at']).tz_convert('UTC')),
                           rec.get('model_version'), int(rec.get('horizon_bars', 0))))
     counts = {'saved':0, 'duplicate':0, 'wait_skipped':0, 'errors':0, 'candidates':0}
+    model_counts = {}
+    latest_bar_by_market = {}
+    now = pd.Timestamp.now(tz="UTC")
     for timeframe, (interval, period) in TIMEFRAMES.items():
         for name, ticker in MARKETS.items():
             try:
@@ -122,6 +126,11 @@ def main():
                         print(f'{name} {timeframe}: insufficient candles')
                         continue
                     counts['candidates'] += 1
+                    model_row = model_counts.setdefault(
+                        model_version, {'BUY': 0, 'SELL': 0, 'WAIT': 0}
+                    )
+                    model_row[payload['signal']] += 1
+                    latest_bar_by_market[name] = payload['signal_bar_at']
                     print(f"{name} {timeframe} {model_version}: {payload['signal']} @ {payload['signal_bar_at']}")
                     if payload['signal'] == 'WAIT' and not args.include_wait:
                         counts['wait_skipped'] += 1
@@ -140,6 +149,16 @@ def main():
                     counts['errors'] += 1
                     print(f'ERROR {name} {timeframe} {model_version}: {type(exc).__name__}: {exc}')
     print('Collection summary:', counts)
+    print('Research signal coverage (including WAIT abstentions):')
+    for version, row in sorted(model_counts.items()):
+        total = sum(row.values())
+        print(
+            f"  {version}: evaluated_markets={total} "
+            f"BUY={row['BUY']} SELL={row['SELL']} WAIT={row['WAIT']}"
+        )
+    print(f"Markets with completed-bar data: {len(latest_bar_by_market)}")
+    if counts['candidates'] == 0:
+        print("WARNING: no markets produced completed-bar research candidates")
     if counts['errors']:
         sys.exit(1)
 
