@@ -1,0 +1,53 @@
+name: Research V5.4 Predictor Robustness
+
+on:
+  workflow_dispatch:
+    inputs:
+      period:
+        description: "Daily historical candles"
+        type: choice
+        required: true
+        options:
+          - 5y
+          - 2y
+          - 10y
+        default: 5y
+
+permissions:
+  contents: read
+
+jobs:
+  robustness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install research dependencies
+        run: pip install pandas numpy yfinance requests
+
+      - name: Test model and research invariants
+        run: |
+          python -m compileall -q signal_models.py research_multimarket.py research_robustness.py tests
+          python -m unittest discover -s tests -p 'test_book_strategies.py' -v
+          python -m unittest discover -s tests -p 'test_liquidity_sweep.py' -v
+          python -m unittest discover -s tests -p 'test_multimarket_research.py' -v
+          python -m unittest discover -s tests -p 'test_research_robustness.py' -v
+
+      - name: Check historical prediction sensitivity
+        run: |
+          python research_robustness.py --period "${{ inputs.period }}" --split 0.70 --max-markets 15 --output-dir research_outputs
+
+      - name: Upload research results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v54-predictor-robustness
+          path: research_outputs/
+          if-no-files-found: warn
