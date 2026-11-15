@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from signal_models import (
     CHANNEL_VERSION, SUPPLY_DEMAND_VERSION,
-    STRUCTURE_VERSION, MODEL_LABELS,
+    STRUCTURE_VERSION, LIQUIDITY_SWEEP_VERSION, MODEL_LABELS,
     apply_research_model,
 )
 
@@ -25,9 +25,11 @@ class BookStrategyTests(unittest.TestCase):
         self.assertIn(CHANNEL_VERSION, MODEL_LABELS)
         self.assertIn(SUPPLY_DEMAND_VERSION, MODEL_LABELS)
         self.assertIn(STRUCTURE_VERSION, MODEL_LABELS)
+        self.assertIn(LIQUIDITY_SWEEP_VERSION, MODEL_LABELS)
 
     def test_boolean_aligned_no_conflicts(self):
-        for model in (CHANNEL_VERSION, SUPPLY_DEMAND_VERSION, STRUCTURE_VERSION):
+        for model in (CHANNEL_VERSION, SUPPLY_DEMAND_VERSION, STRUCTURE_VERSION,
+                      LIQUIDITY_SWEEP_VERSION):
             buy, sell = apply_research_model(self.candles, model)
             self.assertTrue(buy.index.equals(self.candles.index))
             self.assertTrue(sell.index.equals(self.candles.index))
@@ -38,7 +40,8 @@ class BookStrategyTests(unittest.TestCase):
             self.assertFalse(sell.iloc[:60].any())
 
     def test_no_future_lookahead(self):
-        for model in (CHANNEL_VERSION, SUPPLY_DEMAND_VERSION):
+        for model in (CHANNEL_VERSION, SUPPLY_DEMAND_VERSION,
+                      STRUCTURE_VERSION, LIQUIDITY_SWEEP_VERSION):
             full_buy, full_sell = apply_research_model(self.candles, model)
             for cutoff in (65, 100, 140):
                 prefix_buy, prefix_sell = apply_research_model(
@@ -55,7 +58,8 @@ class BookStrategyTests(unittest.TestCase):
 
     def test_empty_market_data_is_not_a_signal(self):
         empty = self.candles.iloc[:0]
-        for model in (CHANNEL_VERSION, SUPPLY_DEMAND_VERSION):
+        for model in (CHANNEL_VERSION, SUPPLY_DEMAND_VERSION,
+                      STRUCTURE_VERSION, LIQUIDITY_SWEEP_VERSION):
             buy, sell = apply_research_model(empty, model)
             self.assertEqual(len(buy), 0)
             self.assertEqual(len(sell), 0)
