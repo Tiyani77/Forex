@@ -1,4 +1,4 @@
-name: Research V5.4 Predictor Robustness
+name: Research V5.5 Predictor Readiness
 
 on:
   workflow_dispatch:
@@ -34,20 +34,25 @@ jobs:
 
       - name: Test model and research invariants
         run: |
-          python -m compileall -q signal_models.py research_multimarket.py research_robustness.py tests
+          python -m compileall -q signal_models.py research_multimarket.py research_robustness.py research_release_audit.py tests
           python -m unittest discover -s tests -p 'test_book_strategies.py' -v
           python -m unittest discover -s tests -p 'test_liquidity_sweep.py' -v
           python -m unittest discover -s tests -p 'test_multimarket_research.py' -v
           python -m unittest discover -s tests -p 'test_research_robustness.py' -v
+          python -m unittest discover -s tests -p 'test_research_release_audit.py' -v
 
       - name: Check historical prediction sensitivity
         run: |
           python research_robustness.py --period "${{ inputs.period }}" --split 0.70 --max-markets 15 --output-dir research_outputs
 
+      - name: Audit readiness without promoting strategies
+        run: |
+          python research_release_audit.py --input research_outputs/v54_sensitivity_by_market.csv --output-dir research_outputs
+
       - name: Upload research results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: v54-predictor-robustness
+          name: v55-predictor-readiness
           path: research_outputs/
           if-no-files-found: warn
