@@ -2,6 +2,7 @@
 import unittest
 
 from forward_evidence import wilson_interval, summarise_forward
+from signal_models import MODEL_LABELS
 
 
 def record(model, signal="BUY", status="evaluated", correct=True,
@@ -33,7 +34,7 @@ class ForwardEvidenceTests(unittest.TestCase):
             record("m", signal="BUY", status="unavailable",
                    correct=None, ident="4"),
         ]
-        row = summarise_forward(rows).iloc[0]
+        row = summarise_forward(rows).set_index("model_version").loc["m"]
         self.assertEqual(row.evaluated_directional, 1)
         self.assertEqual(row.correct_directional, 1)
         self.assertEqual(row.wait_total, 1)
@@ -44,7 +45,7 @@ class ForwardEvidenceTests(unittest.TestCase):
     def test_late_outcome_not_counted(self):
         row = summarise_forward([
             record("m", ident="1", recorded_at="2026-01-09T00:00:00Z")
-        ]).iloc[0]
+        ]).set_index("model_version").loc["m"]
         self.assertEqual(row.evaluated_directional, 0)
         self.assertEqual(row.invalid_evaluated, 1)
 
@@ -55,19 +56,25 @@ class ForwardEvidenceTests(unittest.TestCase):
             record("m", ident="1",
                    recorded_at="2026-01-08T06:00:00Z",
                    outcome_bar_at="2026-01-08T00:00:00Z")
-        ]).iloc[0]
+        ]).set_index("model_version").loc["m"]
         self.assertEqual(row.evaluated_directional, 1)
 
     def test_duplicate_id_not_double_counted(self):
         item = record("m", ident="same")
-        row = summarise_forward([item, item]).iloc[0]
+        row = summarise_forward([item, item]).set_index("model_version").loc["m"]
         self.assertEqual(row.recorded_total, 1)
 
     def test_multiple_models_separate(self):
         rows = [record("a", ident="1"), record("b", ident="2", correct=False)]
         result = summarise_forward(rows)
-        self.assertEqual(len(result), 2)
+        self.assertEqual(len(result), len(MODEL_LABELS) + 2)
         self.assertEqual(int(result.correct_directional.sum()), 1)
+
+    def test_all_registered_models_shown_without_records(self):
+        result = summarise_forward([])
+        self.assertEqual(set(result.model_version), set(MODEL_LABELS))
+        self.assertEqual(set(result.evidence_status), {"NO_SAVED_SIGNALS"})
+        self.assertTrue((result.recorded_total == 0).all())
 
     def test_sufficient_sample_is_review_not_validated(self):
         rows = [
@@ -75,7 +82,7 @@ class ForwardEvidenceTests(unittest.TestCase):
                    correct=(i % 3 != 0))
             for i in range(110)
         ]
-        row = summarise_forward(rows).iloc[0]
+        row = summarise_forward(rows).set_index("model_version").loc["m"]
         self.assertEqual(row.evidence_status, "REVIEW_REQUIRED_CORRELATED_SAMPLE")
 
 
