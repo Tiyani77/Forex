@@ -1,0 +1,45 @@
+name: V6 Forward Prediction Evidence
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "43 7 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  forward-evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install pandas numpy requests
+
+      - name: Compile and test forward-evidence logic
+        run: |
+          python -m compileall -q forward_evidence.py tests/test_forward_evidence.py
+          python -m unittest discover -s tests -p 'test_forward_evidence.py' -v
+
+      - name: Generate read-only forward evidence report
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python forward_evidence.py --output-dir forward_evidence_outputs
+
+      - name: Upload forward evidence report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v6-forward-evidence
+          path: forward_evidence_outputs/
+          if-no-files-found: warn
+          retention-days: 30
