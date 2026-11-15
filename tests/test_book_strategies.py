@@ -3,7 +3,8 @@ import unittest
 import numpy as np
 import pandas as pd
 from signal_models import (
-    CHANNEL_VERSION, SUPPLY_DEMAND_VERSION, STRUCTURE_VERSION, MODEL_LABELS,
+    CHANNEL_VERSION, CHANNEL_V2_VERSION, SUPPLY_DEMAND_VERSION,
+    STRUCTURE_VERSION, MODEL_LABELS,
     apply_research_model,
 )
 
@@ -22,11 +23,13 @@ class BookStrategyTests(unittest.TestCase):
 
     def test_candidates_are_registered(self):
         self.assertIn(CHANNEL_VERSION, MODEL_LABELS)
+        self.assertIn(CHANNEL_V2_VERSION, MODEL_LABELS)
         self.assertIn(SUPPLY_DEMAND_VERSION, MODEL_LABELS)
         self.assertIn(STRUCTURE_VERSION, MODEL_LABELS)
 
     def test_boolean_aligned_no_conflicts(self):
-        for model in (CHANNEL_VERSION, SUPPLY_DEMAND_VERSION, STRUCTURE_VERSION):
+        for model in (CHANNEL_VERSION, CHANNEL_V2_VERSION, SUPPLY_DEMAND_VERSION,
+                      STRUCTURE_VERSION):
             buy, sell = apply_research_model(self.candles, model)
             self.assertTrue(buy.index.equals(self.candles.index))
             self.assertTrue(sell.index.equals(self.candles.index))
