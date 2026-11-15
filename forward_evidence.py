@@ -103,7 +103,7 @@ def summarise_forward(records):
     if data.empty:
         return pd.DataFrame(columns=columns)
     for col in ("model_version", "status", "signal", "ticker",
-                "correct", "recorded_at", "outcome_bar_at"):
+                "timeframe", "correct", "recorded_at", "outcome_bar_at"):
         if col not in data:
             data[col] = None
 
@@ -123,12 +123,25 @@ def summarise_forward(records):
         directional = group.loc[group.signal.isin(["BUY", "SELL"])].copy()
         evaluated = directional.loc[directional.status == "evaluated"].copy()
         evaluated["confirmed"] = evaluated["correct"].map(_as_bool)
-        # The outcome bar is labelled by its OPEN, so it must start later
-        # than recording for a non-late future evaluation.
+        # The outcome bar is labelled by its OPEN. A prediction may be
+        # recorded during that bar, provided it was recorded BEFORE close.
+        # This secondary check supplements (does not replace) the
+        # evaluator's stricter first-future-bar late-recording protection.
+        duration = evaluated["timeframe"].map({
+            "5m": pd.Timedelta(minutes=5),
+            "15m": pd.Timedelta(minutes=15),
+            "1h": pd.Timedelta(hours=1),
+            "4h": pd.Timedelta(hours=4),
+            "1d": pd.Timedelta(days=1),
+        })
         temporal_valid = (
             evaluated["recorded_at_utc"].notna()
             & evaluated["outcome_at_utc"].notna()
-            & (evaluated["outcome_at_utc"] > evaluated["recorded_at_utc"])
+            & duration.notna()
+            & (
+                evaluated["outcome_at_utc"] + duration
+                > evaluated["recorded_at_utc"]
+            )
         )
         trustworthy = evaluated.loc[
             evaluated["confirmed"].notna() & temporal_valid
