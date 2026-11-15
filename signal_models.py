@@ -102,11 +102,83 @@ def supply_demand_rejection_signals(candles):
     return buy.fillna(False).astype(bool), sell.fillna(False).astype(bool)
 
 
+# V5.2: operationalised market-structure breakout plus retest.
+# Structural level on signal bar uses the highest high / lowest low of the
+# prior 20 bars (excludes current bar) and a previous structural breach.
+# A retest entry must emerge within three bars AFTER a breach; no future bars
+# are needed for the current decision.
+STRUCTURE_VERSION = "falcon-structure-retest-v1"
+
+
+def structure_retest_signals(candles):
+    """Candidate inspired by Falcon continuation / price-action structure.
+
+    One event is a break beyond the previous 20-bar swing envelope.
+    Within the following 1-3 bars, price must touch that broken level and
+    close back on the continuation side with a confirming candle body.
+    Break level is frozen on the breakout bar; shifting the event makes
+    the retest causal. Not a claim to implement complete Falcon patterns.
+    """
+    close = candles["Close"]
+    open_ = candles["Open"]
+    high = candles["High"]
+    low = candles["Low"]
+    ema20 = close.ewm(span=20, adjust=False).mean()
+    ema50 = close.ewm(span=50, adjust=False).mean()
+    prev_high = high.shift(1).rolling(20, min_periods=20).max()
+    prev_low = low.shift(1).rolling(20, min_periods=20).min()
+    atr = _atr(candles)
+
+    break_up = (close > prev_high) & (ema20 > ema50)
+    break_down = (close < prev_low) & (ema20 < ema50)
+    # Break was identified on an earlier completed bar, not current.
+    # Only the MOST RECENT breakout in the lookback can trigger one retest.
+    recent_up = break_up.shift(1, fill_value=False) | break_up.shift(
+        2, fill_value=False
+    ) | break_up.shift(3, fill_value=False)
+    recent_down = break_down.shift(1, fill_value=False) | break_down.shift(
+        2, fill_value=False
+    ) | break_down.shift(3, fill_value=False)
+
+    last_break_up_level = pd.Series(float("nan"), index=candles.index)
+    last_break_down_level = pd.Series(float("nan"), index=candles.index)
+    for k in (3, 2, 1):
+        last_break_up_level = last_break_up_level.where(
+            ~break_up.shift(k, fill_value=False), prev_high.shift(k)
+        )
+        last_break_down_level = last_break_down_level.where(
+            ~break_down.shift(k, fill_value=False), prev_low.shift(k)
+        )
+
+    small_buffer = 0.10 * atr
+    bullish = (
+        recent_up & (ema20 > ema50)
+        & (low <= last_break_up_level + small_buffer)
+        & (close > last_break_up_level)
+        & (close > open_)
+        & (close > close.shift(1))
+    )
+    bearish = (
+        recent_down & (ema20 < ema50)
+        & (high >= last_break_down_level - small_buffer)
+        & (close < last_break_down_level)
+        & (close < open_)
+        & (close < close.shift(1))
+    )
+    # Three prior bars plus indicators; independent of future market data.
+    warm = pd.Series(range(len(candles)), index=candles.index) >= 60
+    return (
+        (warm & bullish).fillna(False).astype(bool),
+        (warm & bearish).fillna(False).astype(bool),
+    )
+
+
 MODEL_LABELS = {
     BASELINE_VERSION: "EMA + Engulfing (original)",
     MOMENTUM_VERSION: "EMA + RSI + MACD (experimental)",
     CHANNEL_VERSION: "Channel Breakout (book-informed research)",
     SUPPLY_DEMAND_VERSION: "Supply/Demand Rejection (book-informed research)",
+    STRUCTURE_VERSION: "Market Structure Retest (Falcon-inspired research)",
 }
 
 
@@ -118,4 +190,6 @@ def apply_research_model(candles, model_version):
         return channel_breakout_signals(candles)
     if model_version == SUPPLY_DEMAND_VERSION:
         return supply_demand_rejection_signals(candles)
+    if model_version == STRUCTURE_VERSION:
+        return structure_retest_signals(candles)
     raise ValueError(f"Unsupported research model: {model_version}")
