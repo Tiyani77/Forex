@@ -15,7 +15,7 @@ class IntradayTrialUiTests(unittest.TestCase):
 
     def test_only_separate_correct_model_and_timeframes(self):
         self.assertIn('["5m", "15m"]', source)
-        self.assertIn('"model_version"].eq(CLOSE_CONFIRM_VERSION)', source)
+        self.assertIn('[FAST_PROBE_VERSION, CLOSE_CONFIRM_VERSION]', source)
         self.assertIn('["BUY", "SELL"]', source)
 
     def test_no_claim_of_live_broker_profit(self):
