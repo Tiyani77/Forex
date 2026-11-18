@@ -108,3 +108,41 @@ The November 18, 2026 user-supplied isolated filter counts show a **body-size ga
 New `audit_fx_candle_quality.py` read-only diagnostic records the frequency of exactly/nearly equal Open/Close, candles below 0.10 ATR body size, median body-to-ATR ratio, close-to-close-to-ATR ratio and range-to-ATR ratio per market and historical period. `V8.3 FX Candle Data Quality` GitHub workflow executes these checks across the 15 original FX research markets, and `test_fx_candle_quality.py` covers synthetic zero-body versus nonzero-body data.
 
 **Do not remove candle-strength filters or substitute close-to-close motion into the candle-body rule until data quality is understood.** Even if the body is an unsuitable proxy on a provider feed, that does not by itself establish any profitable replacement. Any revised model must use a fresh version and prospective evaluation.
+
+## V8.3 data-quality findings and V8.4 response — 2026-11-18
+
+The user-run FX candle quality audit across 15 markets showed:
+- **Development** median market identical Open/Close rate: 93.84%, median body/ATR 0.0, and 99.88% of candle bodies below 0.10 ATR.
+- **Later period** median market identical Open/Close rate: 33.59%, median body/ATR 0.006796, and 99.74% of bodies below 0.10 ATR.
+- Median absolute close-to-close change / ATR was ~0.358 in development and ~0.351 in later period.
+
+This is strong reason to distrust the Yahoo Finance FX daily **candle-body-based** strategies and next-Open historical fills. It does **not** independently prove the source is erroneous (market-data source and timestamp semantics require external validation) and does not validate a new price forecasting strategy.
+
+### V8.4: Close Trend + Pullback (research)
+
+Version: `close-trend-pullback-v1`, separately versioned and tracked. No earlier model signals or saved forecasts are overwritten.
+
+This candidate uses **only daily Close** prices and is informed by the books' trend / correction / continuation concepts:
+- EMA20/EMA50 trend and slope of EMA50 five days apart, for directional context;
+- a recent opposing **close-to-close** price movement in the prior three completed bars;
+- one of those prior three closes within 1.25 times a causal median daily absolute close change of EMA20;
+- current completed close movement of at least 0.40 times that past median movement in the trend direction;
+- close has reclaimed EMA20, and is within 2.5 times the same past movement scale to avoid extremes;
+- 65 historical bars warmup. All scale values are shifted to exclude current candle from past statistical thresholds.
+
+The precise thresholds are new mechanical assumptions, NOT verbatim book rules or empirically calibrated probabilities. No claim is made of improved precision, higher win rate or profit. A strong BUY/SELL **market bias** does not automatically produce an actionable BUY/SELL forecast; WAIT is allowed.
+
+### Correct backtest comparison
+
+The new `research_close_signals.py` and **V8.4 Close-Only FX Signal Benchmark** GitHub workflow avoid the unreliable Yahoo FX Open proxy: a completed signal at bar `i` is hypothetically entered at the **close of bar `i+1`**, exited at the close of `i+1+horizon`, and charged a declared 4 bps round-trip assumption. This is a **delayed-close simulated execution convention**, not a real broker fill or the forward directional correctness metric. The comparison benchmark holds a simple EMA20 vs EMA50 direction throughout sampled nonoverlapping windows. It does not establish a real tradable passive/active strategy.
+
+Results are printed by development and later period across 15 forex pairs, with net trade counts, median market net win%, median market mean net return, and positive-mean markets. Both historical segments have already been scrutinised repeatedly, so neither can be considered an untouched forward test.
+
+The earlier `research_multimarket.py` next-Open metrics are **not directly comparable** to this close-only benchmark and should not be the release gate for V8.4.
+
+### Current safety and deployment notes
+
+- The app defaults to V8.4 and displays a data-quality warning for daily FX Yahoo tickers. Historical candle-based strategies remain selectable but should not be trusted on this data feed without replacement/correction.
+- Automated collection saves new V8.4 BUY/SELL forecasts under their own immutable version; no late backfilling. No trading execution.
+- The release gate expects **nine** separately versioned strategies. Offline regression tests must run before claiming a working deployment.
+- V8.4 forward outcomes and real price forecasts remain **unvalidated**. Do not guarantee 80%/90% accuracy.
