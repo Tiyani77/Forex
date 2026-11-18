@@ -30,6 +30,7 @@ from prediction_tracking import tracking_overview
 from forward_evidence import summarise_forward
 from signal_readiness import model_readiness, paper_risk_budget
 from forward_pnl import evaluated_reference_returns, reference_summary, reference_scenarios
+from saved_signal_board import latest_saved_signals
 
 
 # ============================================================
@@ -1132,6 +1133,72 @@ if page == "Trading Terminal":
         '</div>',
         unsafe_allow_html=True,
     )
+
+    # Surface what the collector actually SAVED, independently from the
+    # instantaneous latest-candle signal shown in the main orb below.
+    st.markdown("### ⚡ Saved BUY / SELL forecasts")
+    st.caption(
+        "These came from the automated paper-trial workflow. "
+        "They are timestamped previous predictions, not instructions "
+        "to open a trade now. The current candle may legitimately say WAIT."
+    )
+    if not config():
+        st.info(
+            "Saved forecasts are unavailable here because Streamlit's "
+            "Supabase connection is not configured. Add the same "
+            "SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY as GitHub Secrets "
+            "to Streamlit's app secrets."
+        )
+    else:
+        if st.button("↻ Refresh saved forecasts", key="refresh_saved_signals"):
+            st.rerun()
+        try:
+            recent_saved = list_predictions(limit=400)
+            shown = latest_saved_signals(
+                recent_saved, model_version=FAST_PROBE_VERSION, limit=10
+            )
+            if shown:
+                shown_rows = []
+                for item in shown:
+                    shown_rows.append({
+                        "Pair": item["pair"],
+                        "Signal": item["signal"],
+                        "Timeframe": item["timeframe"],
+                        "Forecast recorded (UTC)": item["recorded_at"].strftime(
+                            "%d %b %H:%M"
+                        ),
+                        "Age (minutes)": item["age_minutes"],
+                        "Evaluation": item["status"].capitalize(),
+                    })
+                st.dataframe(
+                    pd.DataFrame(shown_rows),
+                    hide_index=True, use_container_width=True,
+                    column_config={
+                        "Signal": st.column_config.TextColumn(
+                            "Paper BUY / SELL",
+                            help="Saved forecast direction, not a current order."
+                        ),
+                    },
+                )
+                newest_age = shown[0]["age_minutes"]
+                if newest_age >= 30:
+                    st.caption(
+                        f"Newest saved forecast is {newest_age} minutes old. "
+                        "Do not treat these previous predictions as "
+                        "current prices or active entries."
+                    )
+            else:
+                st.info(
+                    "No saved Fast Direction Probe forecasts found yet. "
+                    "The paper-trial workflow must save fresh BUY/SELL "
+                    "signals before anything appears here."
+                )
+        except Exception as exc:
+            st.warning(
+                "Saved paper forecasts could not be loaded. "
+                "Check Streamlit's Supabase connection. "
+                f"Details: {str(exc)}"
+            )
 
     # Simple, glanceable dashboard. Advanced analytics remain accessible below.
     left, center, right = st.columns([1, 1.55, 1], gap="medium")
