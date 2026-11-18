@@ -95,3 +95,16 @@ The updated `diagnose_pullback_v2.py` now reports:
 4. **Minimum body pass (independent)** measured directly against directional confirmations, irrespective of EMA20 distance
 
 These separate counts reveal whether one or both conditions are causing the near-zero signal frequency. They do NOT prove that removing either filter improves accuracy; a larger sample can still lose money. No V8.1 signal code or stored records are changed. Run **V8.2 Signal Filter Diagnosis** again and compare stage counts before developing another version.
+
+## V8.2 latest result and V8.3 OHLC source audit
+
+The November 18, 2026 user-supplied isolated filter counts show a **body-size gate bottleneck**:
+
+- Development: after directional reclaim, BUY 87 and SELL 59; minimum body passed BUY 0 and SELL 1; EMA20 extension independently passed BUY 75 and SELL 48.
+- Later period: after directional reclaim, BUY 284 and SELL 195; body passed only BUY 1 and SELL 1; extension independently passed BUY 250 and SELL 169.
+- The final combined gates passed only one BUY and one SELL in later period. These are candidate candle counts, not non-overlapping trades.
+- The 0.10 ATR candle body threshold failing for 477/479 directional reclaim candles (in the later period) is unusual enough to **audit price data before altering the filter**. It may be due to source OHLC characteristics or the interaction between candle conditions. Neither cause has yet been verified; do not assert a provider bug.
+
+New `audit_fx_candle_quality.py` read-only diagnostic records the frequency of exactly/nearly equal Open/Close, candles below 0.10 ATR body size, median body-to-ATR ratio, close-to-close-to-ATR ratio and range-to-ATR ratio per market and historical period. `V8.3 FX Candle Data Quality` GitHub workflow executes these checks across the 15 original FX research markets, and `test_fx_candle_quality.py` covers synthetic zero-body versus nonzero-body data.
+
+**Do not remove candle-strength filters or substitute close-to-close motion into the candle-body rule until data quality is understood.** Even if the body is an unsuitable proxy on a provider feed, that does not by itself establish any profitable replacement. Any revised model must use a fresh version and prospective evaluation.
