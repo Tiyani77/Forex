@@ -14,7 +14,7 @@ from forecast_engine import latest_signal
 from signal_models import (
     BASELINE_VERSION, MOMENTUM_VERSION, CHANNEL_VERSION,
     SUPPLY_DEMAND_VERSION, STRUCTURE_VERSION, LIQUIDITY_SWEEP_VERSION,
-    CONFLUENCE_VERSION,
+    CONFLUENCE_VERSION, PULLBACK_V2_VERSION,
     apply_research_model,
 )
 
@@ -90,6 +90,7 @@ def main():
                 BASELINE_VERSION, MOMENTUM_VERSION,
                 CHANNEL_VERSION, SUPPLY_DEMAND_VERSION, STRUCTURE_VERSION,
                 LIQUIDITY_SWEEP_VERSION, CONFLUENCE_VERSION,
+                PULLBACK_V2_VERSION,
             ):
                 try:
                     payload = prediction(name, ticker, timeframe, candles, model_version)
