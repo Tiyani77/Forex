@@ -904,7 +904,7 @@ market = st.sidebar.selectbox(
 tf = st.sidebar.selectbox(
     "Timeframe",
     list(TIMEFRAMES),
-    index=4,
+    index=1,  # Start on 15-minute candles for rapid paper observation.
 )
 
 strategy_label = st.sidebar.selectbox(
@@ -1101,7 +1101,7 @@ atr_pct = (
 st.markdown(
     '<div class="fi-header"><div>'
     '<div class="fi-heading">✦ Forex <span class="fi-gradient">Intelligence</span></div>'
-    '<div class="fi-subheading">Market research terminal · Technical analytics · '
+    '<div class="fi-subheading">Paper market direction · Technical analytics · '
     'Forward evidence tracking</div></div>'
     f'<div class="fi-chips"><span class="fi-chip">{APP_VERSION}</span>'
     '<span class="fi-chip fi-chip-live">● Research mode · Delayed data</span>'
@@ -1156,6 +1156,11 @@ if page == "Trading Terminal":
         )
 
     with center:
+        if MODEL_VERSION == FAST_PROBE_VERSION:
+            st.caption(
+                "⚡ FAST PAPER OUTLOOK · The signal is an unvalidated "
+                "directional forecast, not a verified entry or live quote."
+            )
         signal_message = (
             "A setup was detected on the last completed candle."
             if signal != "WAIT" else
