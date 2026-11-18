@@ -11,6 +11,7 @@ from signal_models import (
     CONFLUENCE_VERSION, confluence_diagnostics,
     PULLBACK_V2_VERSION, pullback_v2_diagnostics,
     CLOSE_CONFIRM_VERSION, close_trend_diagnostics,
+    FAST_PROBE_VERSION, fast_probe_diagnostics,
     MODEL_LABELS, momentum_signals,
     apply_research_model,
 )
@@ -909,7 +910,7 @@ tf = st.sidebar.selectbox(
 strategy_label = st.sidebar.selectbox(
     "Signal strategy",
     list(MODEL_LABELS.values()),
-    index=list(MODEL_LABELS).index(CLOSE_CONFIRM_VERSION),
+    index=list(MODEL_LABELS).index(FAST_PROBE_VERSION),
     help="Book-informed research candidates are unvalidated.",
 )
 MODEL_VERSION = next(
@@ -1016,6 +1017,11 @@ if MODEL_VERSION == PULLBACK_V2_VERSION:
     market_bias = str(bias_series.iloc[-1])
 if MODEL_VERSION == CLOSE_CONFIRM_VERSION:
     _, _, bias_series = close_trend_diagnostics(
+        raw.iloc[:terminal_bar_index + 1]
+    )
+    market_bias = str(bias_series.iloc[-1])
+if MODEL_VERSION == FAST_PROBE_VERSION:
+    _, _, bias_series = fast_probe_diagnostics(
         raw.iloc[:terminal_bar_index + 1]
     )
     market_bias = str(bias_series.iloc[-1])
@@ -1154,6 +1160,13 @@ if page == "Trading Terminal":
             "A setup was detected on the last completed candle."
             if signal != "WAIT" else
             "No confirmed setup right now. Check again after a new candle."
+        )
+        st.caption(
+            "FAST DIRECTION PROBE shows frequent short-term BUY/SELL "
+            "forecasts for paper testing. These are NOT confirmed trade "
+            "entries or verified profitable advice."
+            if MODEL_VERSION == FAST_PROBE_VERSION else
+            "Strict research strategy: WAIT means no qualified entry."
         )
         st.markdown(
             '<div class="signal-hero">'
@@ -2909,7 +2922,9 @@ elif page == "Prediction History":
                         trial_rows[trial_col] = ""
                 intraday_rows = trial_rows.loc[
                     trial_rows["timeframe"].isin(["5m", "15m"])
-                    & trial_rows["model_version"].eq(CLOSE_CONFIRM_VERSION)
+                    & trial_rows["model_version"].isin(
+                        [FAST_PROBE_VERSION, CLOSE_CONFIRM_VERSION]
+                    )
                     & trial_rows["signal"].isin(["BUY", "SELL"])
                 ].copy()
                 ti1, ti2, ti3 = st.columns(3)
@@ -2924,7 +2939,7 @@ elif page == "Prediction History":
                 )
                 if intraday_rows.empty:
                     st.info(
-                        "No intraday Close Trend + Pullback predictions have "
+                        "No intraday fast/strict research predictions have "
                         "been saved yet. A qualifying BUY/SELL and a fresh "
                         "provider candle are both required. WAIT and stale "
                         "candles are intentionally not saved."
