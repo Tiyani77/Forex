@@ -12,7 +12,10 @@ class TerminalVisualContractTests(unittest.TestCase):
 
     def test_signal_orb_is_driven_by_real_model_signal(self):
         self.assertIn('class="signal-orb {color_class}"', self.source)
-        self.assertIn('f\'{signal}</div>\'', self.source)
+        self.assertIn(
+            'f\'<div class="signal-orb {color_class}">{signal}</div>\'',
+            self.source,
+        )
         self.assertIn("signal-hero-desc", self.source)
 
     def test_market_context_uses_real_selection(self):
