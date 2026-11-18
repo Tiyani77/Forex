@@ -34,8 +34,8 @@ def check_release(root="."):
         except (SyntaxError, UnicodeDecodeError) as exc:
             problems.append(f"Invalid Python file: {filename}: {exc}")
 
-    if len(MODEL_LABELS) != 9:
-        problems.append("Expected nine independently versioned research models")
+    if len(MODEL_LABELS) != 10:
+        problems.append("Expected ten independently versioned research models")
     if len(set(MODEL_LABELS)) != len(MODEL_LABELS):
         problems.append("Duplicate model version identifiers")
     if len(set(MODEL_LABELS.values())) != len(MODEL_LABELS):
