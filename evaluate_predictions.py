@@ -16,6 +16,8 @@ import pandas as pd
 import yfinance as yf
 import requests
 
+from prediction_monitor import pending_diagnostic
+
 
 TABLE = "forex_predictions"
 
@@ -304,6 +306,8 @@ def main():
     counts = {}
     cache = {}
     errors = 0
+    waiting_by_model = {}
+    monitor_review_count = 0
 
     for record in pending:
         ticker = record["ticker"]
@@ -330,6 +334,21 @@ def main():
                 f"{ticker} {timeframe} "
                 f"{record['signal']}: {result}"
             )
+            if result in ("not_ready", "no_data", "signal_bar_missing"):
+                diagnostic = pending_diagnostic(record, cache[cache_key])
+                model_version = record.get("model_version", "unspecified")
+                waiting_by_model[model_version] = (
+                    waiting_by_model.get(model_version, 0) + 1
+                )
+                if diagnostic["review_suggested"]:
+                    monitor_review_count += 1
+                print(
+                    f"  monitoring: reason={diagnostic['reason']} "
+                    f"observed_future_bars={diagnostic['bars_seen']} "
+                    f"remaining_bars={diagnostic['bars_remaining']} "
+                    f"pending_age_days={diagnostic['age_days']} "
+                    f"review_suggested={diagnostic['review_suggested']}"
+                )
 
         except Exception as exc:
             errors += 1
@@ -344,6 +363,11 @@ def main():
         print(f"  {status}: {count}")
 
     print(f"  errors: {errors}")
+    print("V6.2 pending monitoring (informational):")
+    for model_version, n in sorted(waiting_by_model.items()):
+        print(f"  {model_version}: awaiting_or_missing_data={n}")
+    print(f"  aged_for_manual_review={monitor_review_count}")
+    print("  Review flags do not change evaluation status or score predictions.")
 
     if errors:
         sys.exit(1)
