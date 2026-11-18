@@ -9,7 +9,11 @@ Never expose Supabase secret keys in GitHub.
 
 import os
 import requests
-import streamlit as st
+try:
+    import streamlit as st
+except ImportError:
+    st = None  # GitHub Action readers need environment variables, not Streamlit.
+
 from urllib.parse import urlsplit, urlunsplit
 
 
