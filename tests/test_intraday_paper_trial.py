@@ -3,7 +3,7 @@ import unittest
 import pandas as pd
 
 from intraday_paper_trial import trial_eligibility
-from signal_models import CLOSE_CONFIRM_VERSION
+from signal_models import FAST_PROBE_VERSION
 
 
 def candles(count=100, start="2026-11-18T10:00:00Z", minutes=5):
@@ -35,7 +35,7 @@ class IntradayPaperTrialTests(unittest.TestCase):
             pd.to_datetime(decision["signal_bar_at"], utc=True),
             candidate_open,
         )
-        self.assertEqual(decision["model_version"], CLOSE_CONFIRM_VERSION)
+        self.assertEqual(decision["model_version"], FAST_PROBE_VERSION)
 
     def test_reject_delayed_feed(self):
         data = candles()
