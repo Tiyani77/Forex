@@ -67,6 +67,52 @@ class PullbackReclaimV2Tests(unittest.TestCase):
         )
         self.assertEqual(forecast["signal"], "WAIT")
 
+    def test_bullish_pullback_reclaim_can_trigger(self):
+        # Artificial falling candle after a persistent trend, followed
+        # by directional rebound close above EMA20.
+        n = 125
+        base = np.linspace(100, 112.4, n)
+        o = base - .08
+        c = base.copy()
+        h = np.maximum(o, c) + .4
+        l = np.minimum(o, c) - .4
+        c[118], o[118], h[118], l[118] = (
+            base[118] - 1.65, base[118] - .2,
+            base[118] + .2, base[118] - 1.95
+        )
+        c[119], o[119], h[119], l[119] = (
+            base[119] + .35, base[119] - .40,
+            base[119] + .6, base[119] - .6
+        )
+        frame = pd.DataFrame({
+            "Open": o, "High": h, "Low": l, "Close": c
+        }, index=pd.date_range("2025-01-01", periods=n, tz="UTC"))
+        buy, sell, _ = pullback_v2_diagnostics(frame)
+        self.assertTrue(bool(buy.iloc[119]))
+        self.assertFalse(bool(sell.iloc[119]))
+
+    def test_bearish_pullback_reclaim_can_trigger(self):
+        n = 125
+        base = np.linspace(125, 112.6, n)
+        o = base + .08
+        c = base.copy()
+        h = np.maximum(o, c) + .4
+        l = np.minimum(o, c) - .4
+        c[118], o[118], h[118], l[118] = (
+            base[118] + 1.65, base[118] + .2,
+            base[118] + 1.95, base[118] - .2
+        )
+        c[119], o[119], h[119], l[119] = (
+            base[119] - .35, base[119] + .40,
+            base[119] + .6, base[119] - .6
+        )
+        frame = pd.DataFrame({
+            "Open": o, "High": h, "Low": l, "Close": c
+        }, index=pd.date_range("2025-01-01", periods=n, tz="UTC"))
+        buy, sell, _ = pullback_v2_diagnostics(frame)
+        self.assertTrue(bool(sell.iloc[119]))
+        self.assertFalse(bool(buy.iloc[119]))
+
     def test_empty_market_safe(self):
         buy, sell, bias = pullback_v2_diagnostics(
             self.frame.iloc[:0]
