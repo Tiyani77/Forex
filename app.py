@@ -26,6 +26,8 @@ from prediction_store import (
     complete_prediction,
 )
 from prediction_tracking import tracking_overview
+from forward_evidence import summarise_forward
+from signal_readiness import model_readiness, paper_risk_budget
 
 
 # ============================================================
@@ -1107,6 +1109,49 @@ if page == "Trading Terminal":
         st.caption(
             "Historical candle close, "
             "not a live executable quote."
+        )
+
+    st.markdown("#### V8.5 · Paper trading safety check")
+    st.info(
+        "This strategy has not demonstrated positive estimated net "
+        "returns or a verified forward trading edge. Even a BUY/SELL "
+        "signal is for research/paper testing only; no real-money "
+        "trade is approved by this app."
+    )
+    with st.expander("Illustrative risk budget — PAPER ONLY"):
+        paper_balance = st.number_input(
+            "Example paper account balance (USD)", min_value=100.0,
+            value=1000.0, step=100.0, key="paper_balance"
+        )
+        paper_risk_pct = st.number_input(
+            "Maximum example risk per trade (%)", min_value=0.1,
+            max_value=0.5, value=0.5, step=0.1, key="paper_risk_pct"
+        )
+        st.caption(
+            "Enter your independently estimated USD loss per hypothetical "
+            "unit after stop distance, conversions, spreads and costs. "
+            "This is NOT a lot-size, pip-value or stop-loss calculator."
+        )
+        paper_loss = st.number_input(
+            "Estimated loss (USD) per hypothetical unit",
+            min_value=0.01, value=1.00, step=0.01,
+            key="paper_loss_per_unit",
+        )
+        try:
+            plan = paper_risk_budget(
+                paper_balance, paper_risk_pct, paper_loss
+            )
+            st.write(
+                f"**Illustrative maximum paper risk:** "
+                f"USD {plan['risk_budget_usd']:.2f}; "
+                f"hypothetical units: {plan['max_paper_units']:,}."
+            )
+        except ValueError as exc:
+            st.warning(str(exc))
+        st.caption(
+            "Actual losses may exceed stop-loss estimates due to gaps, "
+            "slippage, execution and conversion. Do not execute orders "
+            "based on this example."
         )
 
     with right:
@@ -2644,9 +2689,9 @@ elif page == "Prediction History":
         "unavailable records are not scored."
     )
     st.info(
-        "V7.1 release candidate: directional accuracy is NOT a calibrated "
-        "probability and NOT broker-executable net profit. All six models "
-        "remain unvalidated pending sufficient genuine forward outcomes."
+        "V8.5: historical direction accuracy is NOT executable trading "
+        "profit. All nine research models remain unvalidated. We cannot "
+        "approve live-money trading from these predictions."
     )
 
     if not config():
@@ -2758,6 +2803,36 @@ elif page == "Prediction History":
                 page_size=500, max_records=5000
             )
             history = pd.DataFrame(records)
+            # V8.5: report real-time forward evidence without claiming
+            # that directional accuracy proves broker P&L.
+            forward_summary = summarise_forward(records)
+            selected_row = forward_summary.loc[
+                forward_summary["model_version"] == MODEL_VERSION
+            ]
+            selected_evidence = (
+                selected_row.iloc[0].to_dict()
+                if not selected_row.empty else None
+            )
+            gate = model_readiness(selected_evidence)
+            st.markdown("### V8.5 · Forward-evidence trade readiness")
+            st.warning(
+                f"**{MODEL_VERSION} — {gate['status']}**. "
+                f"{gate['reason']} "
+                "Real-money readiness: NOT ESTABLISHED."
+            )
+            st.dataframe(
+                forward_summary[[
+                    "model_version", "evaluated_directional",
+                    "accuracy_pct", "markets_evaluated",
+                    "pending_directional", "evidence_status"
+                ]],
+                hide_index=True, use_container_width=True
+            )
+            st.caption(
+                "Directional close-to-close correctness is neither a "
+                "profitable entry/exit result nor independent evidence "
+                "of a tradable strategy. Status never auto-promotes."
+            )
             if history_truncated:
                 st.warning(
                     "History is capped at the latest 5,000 saved records. "
