@@ -1,0 +1,50 @@
+name: V8.3 FX Candle Data Quality
+
+on:
+  workflow_dispatch:
+    inputs:
+      period:
+        description: "Daily candle history"
+        required: true
+        type: choice
+        options:
+          - 5y
+          - 2y
+          - 10y
+        default: 5y
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install research dependencies
+        run: pip install pandas numpy yfinance requests
+
+      - name: Test diagnostic without market access
+        run: |
+          python -m compileall -q audit_fx_candle_quality.py tests/test_fx_candle_quality.py
+          python -m unittest discover -s tests -p 'test_fx_candle_quality.py' -v
+
+      - name: Audit daily FX OHLC
+        run: |
+          python audit_fx_candle_quality.py --period "${{ inputs.period }}" --split 0.70 --output-dir research_outputs
+
+      - name: Upload diagnostic files
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v83-forex-candle-quality
+          path: research_outputs/
+          if-no-files-found: warn
