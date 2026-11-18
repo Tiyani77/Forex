@@ -41,16 +41,39 @@ class IntradayPaperTrialTests(unittest.TestCase):
         data = candles()
         candidate = data.index[-2]
         decision, reason = trial_eligibility(
-            data, "5m", now=candidate + pd.Timedelta(minutes=10)
+            data, "5m", now=candidate + pd.Timedelta(minutes=15)
         )
         self.assertIsNone(decision)
         self.assertEqual(reason, "stale_provider_bar_skip")
 
-    def test_reject_unclosed_candle(self):
+    def test_never_uses_unclosed_latest_candle(self):
         data = candles()
         candidate = data.index[-2]
         decision, reason = trial_eligibility(
             data, "5m", now=candidate + pd.Timedelta(minutes=2)
+        )
+        self.assertIsNotNone(decision)
+        self.assertEqual(
+            pd.to_datetime(decision["signal_bar_at"], utc=True),
+            data.index[-3],
+        )
+
+    def test_accepts_newest_bar_when_already_completed(self):
+        data = candles()
+        last = data.index[-1]
+        decision, reason = trial_eligibility(
+            data, "5m", now=last + pd.Timedelta(minutes=6)
+        )
+        self.assertIsNotNone(decision)
+        self.assertEqual(reason, "eligible_before_first_future_close")
+        self.assertEqual(
+            pd.to_datetime(decision["signal_bar_at"], utc=True), last
+        )
+
+    def test_reject_no_completed_candles(self):
+        data = candles()
+        decision, reason = trial_eligibility(
+            data, "5m", now=data.index[0] + pd.Timedelta(minutes=2)
         )
         self.assertIsNone(decision)
         self.assertEqual(reason, "signal_bar_not_closed")
