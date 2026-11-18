@@ -932,7 +932,7 @@ with st.sidebar.expander("⚙ More options", expanded=False):
     )
 
 st.sidebar.caption(
-    "♡ Research only · Signals are not validated trading advice."
+    "♡ RESEARCH ONLY · NOT VALIDATED · Not trading advice."
 )
 
 
@@ -1238,37 +1238,37 @@ if page == "Trading Terminal":
             "Signals are research only. None has shown a validated positive "
             "forward trading edge. Do not risk real money based on this app."
         )
-        with st.expander("Illustrative risk budget — PAPER ONLY"):
-            paper_balance = st.number_input(
-                "Example paper account balance (USD)",
-                min_value=100.0, value=1000.0, step=100.0,
-                key="paper_balance",
+        st.markdown("**Illustrative risk budget · paper only**")
+        paper_balance = st.number_input(
+            "Example paper account balance (USD)",
+            min_value=100.0, value=1000.0, step=100.0,
+            key="paper_balance",
+        )
+        paper_risk_pct = st.number_input(
+            "Maximum example risk per trade (%)",
+            min_value=0.1, max_value=0.5, value=0.5,
+            step=0.1, key="paper_risk_pct",
+        )
+        paper_loss = st.number_input(
+            "Estimated USD loss per hypothetical unit",
+            min_value=0.01, value=1.0, step=0.01,
+            key="paper_loss_per_unit",
+        )
+        try:
+            plan = paper_risk_budget(
+                paper_balance, paper_risk_pct, paper_loss
             )
-            paper_risk_pct = st.number_input(
-                "Maximum example risk per trade (%)",
-                min_value=0.1, max_value=0.5, value=0.5,
-                step=0.1, key="paper_risk_pct",
+            st.write(
+                f"Illustrative maximum paper risk: "
+                f"USD {plan['risk_budget_usd']:.2f} · "
+                f"hypothetical units: {plan['max_paper_units']:,}"
             )
-            paper_loss = st.number_input(
-                "Estimated USD loss per hypothetical unit",
-                min_value=0.01, value=1.0, step=0.01,
-                key="paper_loss_per_unit",
-            )
-            try:
-                plan = paper_risk_budget(
-                    paper_balance, paper_risk_pct, paper_loss
-                )
-                st.write(
-                    f"Illustrative maximum paper risk: "
-                    f"USD {plan['risk_budget_usd']:.2f} · "
-                    f"hypothetical units: {plan['max_paper_units']:,}"
-                )
-            except ValueError as exc:
-                st.warning(str(exc))
-            st.caption(
-                "Not broker position sizing. Stop gaps, execution costs "
-                "and slippage can exceed this estimate."
-            )
+        except ValueError as exc:
+            st.warning(str(exc))
+        st.caption(
+            "Not broker position sizing. Stop gaps, execution costs "
+            "and slippage can exceed this estimate."
+        )
 
     with st.expander("📊 More market research", expanded=False):
         # Market regime observations use the conservative penultimate bar.
