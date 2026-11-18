@@ -344,6 +344,30 @@ h1,h2,h3 { font-weight: 780; }
     .signal-orb {width:135px;height:135px;margin:16px auto;}
 }
 
+
+/* Simple mode: calm, cute, readable and deliberately uncluttered. */
+.stApp {background:linear-gradient(160deg,#0b1323 0%,#0d1425 60%,#11182b 100%);}
+[data-testid="stSidebar"] {background:linear-gradient(165deg,#111a30,#11182a 70%,#1a1836);}
+.block-container {max-width:1450px;padding-top:1.5rem;}
+.cute-brand {font-size:1.43rem;font-weight:820;letter-spacing:-.04em;margin:13px 0 0;color:#f5f8ff;}
+.cute-brand-icon {color:#a69aff;font-size:1.6rem;}
+.cute-brand-subtitle {font-size:.75rem;color:#a4b6d2;margin:3px 0 25px;}
+.terminal-card {background:#17233a;border-color:#30415f;border-radius:21px;box-shadow:none;}
+.cute-summary {min-height:135px;margin-bottom:13px;}
+.cute-value {font-size:clamp(1.35rem,2.2vw,1.95rem);font-weight:790;color:#eef4ff;margin:12px 0 5px;}
+.cute-muted {font-size:.8rem;color:#a8b9d4;line-height:1.55;}
+.signal-hero {min-height:284px;border-radius:24px;background:linear-gradient(160deg,#182741,#121c31);border-color:#40547b;box-shadow:none;}
+.signal-orb {width:133px;height:133px;margin:18px auto;font-size:2.3rem;}
+.signal-hero-name {font-size:1.55rem;}
+.fi-mini-banner {font-size:.76rem;margin-bottom:11px;padding:9px 13px;border-left-width:2px;}
+.fi-chips {margin-bottom:5px;gap:7px;}
+.fi-chip {font-size:.7rem;padding:6px 10px;}
+[data-testid="stExpander"] {background:#151f33;border:1px solid #2d405e;border-radius:15px;overflow:hidden;margin:8px 0;}
+[data-testid="stExpander"] summary {font-weight:680;color:#cbddf7;}
+[data-testid="stMetric"] {background:#1b2840;box-shadow:none;border:1px solid #354868;}
+[data-testid="stSidebar"] [data-testid="stSelectbox"] {margin-bottom:.2rem;}
+@media(max-width:950px){.signal-hero{min-height:245px}.cute-summary{min-height:105px;}}
+
 </style>
 """,
     unsafe_allow_html=True,
@@ -848,9 +872,11 @@ def forward_leaderboard(history, group_columns):
 # SIDEBAR
 # ============================================================
 
-st.sidebar.markdown("## ✦ Forex Intelligence")
-st.sidebar.caption(
-    f"Market intelligence · {APP_VERSION} terminal"
+st.sidebar.markdown(
+    '<div class="cute-brand"><span class="cute-brand-icon">✦</span> '
+    'Forex <span class="fi-gradient">Intelligence</span></div>'
+    '<div class="cute-brand-subtitle">your little market research space ✨</div>',
+    unsafe_allow_html=True,
 )
 
 page = st.sidebar.radio(
@@ -874,11 +900,6 @@ market = st.sidebar.selectbox(
     list(GROUPS[category]),
 )
 
-custom = st.sidebar.text_input(
-    "Custom Yahoo Finance ticker (optional)",
-    placeholder="EURUSD=X",
-)
-
 tf = st.sidebar.selectbox(
     "Timeframe",
     list(TIMEFRAMES),
@@ -896,32 +917,22 @@ MODEL_VERSION = next(
     if name == strategy_label
 )
 
-st.sidebar.markdown(
-    '<div style="background:#17263a;border:1px solid #b69a58;'
-    'border-radius:12px;padding:12px 14px;line-height:1.5;'
-    'color:#f5e7c3;font-size:0.9rem">'
-    '<strong style="color:#ffdf91">RESEARCH ONLY · NOT VALIDATED</strong>'
-    '<p style="margin:6px 0 0;color:#edf2fc">'
-    'BUY/SELL is a rules-based candle signal, not a verified '
-    'forecast probability or a trading recommendation.</p></div>',
-    unsafe_allow_html=True,
-)
-st.sidebar.caption(
-    "V8 signal research · market bias is NOT an entry signal · "
-    "no validated trading edge."
-)
-
-horizon = st.sidebar.slider(
-    "Backtest holding period (bars)",
-    2,
-    20,
-    5,
-)
+with st.sidebar.expander("⚙ More options", expanded=False):
+    custom = st.text_input(
+        "Custom Yahoo ticker",
+        placeholder="e.g. EURUSD=X",
+        help="Optional. Leave blank to use the selected instrument.",
+    )
+    horizon = st.slider(
+        "Historical holding period (candles)",
+        2, 20, 5,
+    )
+    st.caption(
+        "Yahoo market data can be delayed. Metals use futures proxies."
+    )
 
 st.sidebar.caption(
-    "Market data is delayed/historical. "
-    "Intraday history varies. "
-    "Gold/silver use futures proxies, not spot prices."
+    "♡ Research only · Signals are not validated trading advice."
 )
 
 
@@ -1116,95 +1127,34 @@ if page == "Trading Terminal":
         unsafe_allow_html=True,
     )
 
-    left, center, right = st.columns(
-        [1.05, 1.8, 1.1],
-        gap="medium",
-    )
+    # Simple, glanceable dashboard. Advanced analytics remain accessible below.
+    left, center, right = st.columns([1, 1.55, 1], gap="medium")
 
     with left:
         st.markdown(
-            '<div class="terminal-card">'
-            '<div class="card-label">MARKET OVERVIEW</div>'
+            '<div class="terminal-card cute-summary">'
+            '<div class="card-label">YOUR MARKET</div>'
             f'<div class="card-title">{label}</div>'
-            '<div class="rule">'
-            f"Category: {category}<br>"
-            f"Timeframe: {tf}<br>"
-            "Source: Yahoo Finance"
-            "</div></div>",
+            f'<div class="cute-muted">{category} · {tf} · Yahoo Finance</div>'
+            '</div>',
             unsafe_allow_html=True,
         )
-
         st.markdown(
-            '<div class="terminal-card">'
-            '<div class="card-label">MARKET TREND</div>'
-            f'<div class="card-title">{trend}</div>'
-            '<div class="rule">'
-            f"EMA 20: {fmt_price(float(last.EMA20), market)}"
-            "<br>"
-            f"EMA 50: {fmt_price(float(last.EMA50), market)}"
-            "</div></div>",
+            '<div class="terminal-card cute-summary">'
+            '<div class="card-label">THE TREND</div>'
+            f'<div class="cute-value">{trend}</div>'
+            f'<div class="cute-muted">EMA20 {fmt_price(float(last.EMA20), market)} '
+            f'· EMA50 {fmt_price(float(last.EMA50), market)}</div>'
+            '</div>',
             unsafe_allow_html=True,
         )
-
-        structure = (
-            "Up" if bool(last.BreakUp)
-            else "Down" if bool(last.BreakDown)
-            else "None"
-        )
-
-        st.markdown(
-            '<div class="terminal-card">'
-            '<div class="card-label">MARKET STRUCTURE</div>'
-            '<div class="rule">'
-            f"20-bar break: <b>{structure}</b><br>"
-            "Bullish FVG: "
-            f"{'Detected' if bool(last.BullFVG) else 'Not detected'}"
-            "<br>"
-            "Bearish FVG: "
-            f"{'Detected' if bool(last.BearFVG) else 'Not detected'}"
-            "</div></div>",
-            unsafe_allow_html=True,
-        )
-
-        if result:
-            if close_only_mode:
-                st.metric(
-                    "Historical estimated net win rate",
-                    f"{100 * float(trades['Net win'].mean()):.1f}%",
-                    help=(
-                        "V8.4 exploratory simulation: entry at NEXT DAILY "
-                        "CLOSE after signal, exit after selected holding "
-                        "bars, 4 bps assumed round-trip costs."
-                    ),
-                )
-                st.caption(
-                    f"{result['Trades']} non-overlapping historical "
-                    "simulations; next-close entry, estimated 4 bps "
-                    "cost. Not a broker fill, calibrated confidence "
-                    "or independent forward accuracy."
-                )
-            else:
-                st.metric(
-                    "Historical gross win rate",
-                    f"{result['Win rate %']:.1f}%",
-                    help=f"{result['Trades']} simulated signals; no costs",
-                )
-                st.caption(
-                    f"Based on {result['Trades']} completed historical "
-                    "simulations. Not signal confidence."
-                )
-        else:
-            st.info(
-                "No completed backtest trades for these settings."
-            )
 
     with center:
         signal_message = (
-            MODEL_LABELS[MODEL_VERSION] + " research signal"
+            "A setup was detected on the last completed candle."
             if signal != "WAIT" else
-            "No qualifying setup for the selected strategy on the latest bar"
+            "No confirmed setup right now. Check again after a new candle."
         )
-
         st.markdown(
             '<div class="signal-hero">'
             '<div class="signal-hero-kicker">CURRENT RESEARCH SIGNAL</div>'
@@ -1217,265 +1167,206 @@ if page == "Trading Terminal":
             unsafe_allow_html=True,
         )
 
-        st.metric(
-            "Directional market bias (not a trade signal)",
-            bias_direction,
-            help="Trend-only directional assessment, not a verified forecast "
-                 "or an instruction to buy or sell. Only an actionable "
-                 "BUY/SELL signal is eligible for forward tracking.",
-        )
-
-        st.metric(
-            "Last candle close",
-            fmt_price(float(last.Close), market),
-        )
-
-        st.caption(
-            "Historical candle close, "
-            "not a live executable quote."
-        )
-
-    st.markdown("#### V8.5 · Paper trading safety check")
-    st.info(
-        "This strategy has not demonstrated positive estimated net "
-        "returns or a verified forward trading edge. Even a BUY/SELL "
-        "signal is for research/paper testing only; no real-money "
-        "trade is approved by this app."
-    )
-    with st.expander("Illustrative risk budget — PAPER ONLY"):
-        paper_balance = st.number_input(
-            "Example paper account balance (USD)", min_value=100.0,
-            value=1000.0, step=100.0, key="paper_balance"
-        )
-        paper_risk_pct = st.number_input(
-            "Maximum example risk per trade (%)", min_value=0.1,
-            max_value=0.5, value=0.5, step=0.1, key="paper_risk_pct"
-        )
-        st.caption(
-            "Enter your independently estimated USD loss per hypothetical "
-            "unit after stop distance, conversions, spreads and costs. "
-            "This is NOT a lot-size, pip-value or stop-loss calculator."
-        )
-        paper_loss = st.number_input(
-            "Estimated loss (USD) per hypothetical unit",
-            min_value=0.01, value=1.00, step=0.01,
-            key="paper_loss_per_unit",
-        )
-        try:
-            plan = paper_risk_budget(
-                paper_balance, paper_risk_pct, paper_loss
-            )
-            st.write(
-                f"**Illustrative maximum paper risk:** "
-                f"USD {plan['risk_budget_usd']:.2f}; "
-                f"hypothetical units: {plan['max_paper_units']:,}."
-            )
-        except ValueError as exc:
-            st.warning(str(exc))
-        st.caption(
-            "Actual losses may exceed stop-loss estimates due to gaps, "
-            "slippage, execution and conversion. Do not execute orders "
-            "based on this example."
-        )
-
     with right:
-        if MODEL_VERSION == CLOSE_CONFIRM_VERSION:
-            signal_description = (
-                "Price-close trend, recent corrective close changes, "
-                "mean-reversion proximity and completed-bar directional "
-                "reclaim. Does not use unreliable daily Open/Close bodies."
-                if signal != "WAIT" else
-                f"{bias_direction}: no qualified close-to-close entry "
-                "setup on the latest completed candle."
-            )
-        elif MODEL_VERSION == PULLBACK_V2_VERSION:
-            signal_description = (
-                "Trend pullback/reclaim V8.1 research candidate: "
-                "EMA20/50 trend, prior three-bar corrective phase, "
-                "current trend resumption and ATR extension limit."
-                if signal != "WAIT" else
-                f"{bias_direction}: awaiting an actionable, confirmed "
-                "pullback-and-reclaim candle."
-            )
-        elif MODEL_VERSION == CONFLUENCE_VERSION:
-            signal_description = (
-                "Book-informed continuation proxy: aligned trend, "
-                "prior corrective pullback, renewed directional candle "
-                "and reasonable location inside the prior range. "
-                "Directional bias alone is not an entry."
-                if signal != "WAIT" else
-                f"{bias_direction}: trend context only. No fully "
-                "confirmed pullback-continuation entry on this candle."
-            )
-        elif MODEL_VERSION in (CHANNEL_VERSION, SUPPLY_DEMAND_VERSION, STRUCTURE_VERSION, LIQUIDITY_SWEEP_VERSION):
-            signal_description = (
-                "Book-informed price-structure research candidate. "
-                "Not a verified forecasting advantage."
-            )
-        elif MODEL_VERSION == MOMENTUM_VERSION:
-            signal_description = (
-                "Experimental trend + RSI + MACD + candle-body confirmation."
-                if signal != "WAIT" else
-                "No qualified EMA, RSI and MACD momentum alignment."
-            )
-        else:
-            signal_description = (
-                "Bullish EMA alignment and bullish body engulfing."
-                if signal == "BUY" else
-                "Bearish EMA alignment and bearish body engulfing."
-                if signal == "SELL" else
-                "Waiting for trend alignment and a qualifying engulfing candle."
-            )
-
         st.markdown(
-            '<div class="terminal-card">'
-            '<div class="card-label">'
-            f"RESEARCH SIGNAL · {MODEL_VERSION}"
-            "</div>"
-            f'<div class="card-title {color_class}">'
-            f"{signal}</div>"
-            f'<div class="rule">{signal_description}</div>'
-            "</div>",
+            '<div class="terminal-card cute-summary">'
+            '<div class="card-label">MARKET DIRECTION</div>'
+            f'<div class="cute-value">{bias_direction}</div>'
+            '<div class="cute-muted">Bias is not a trade signal</div>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            '<div class="terminal-card cute-summary">'
+            '<div class="card-label">LAST CANDLE CLOSE</div>'
+            f'<div class="cute-value">{fmt_price(float(last.Close), market)}</div>'
+            '<div class="cute-muted">Historical, not a live quote</div>'
+            '</div>',
             unsafe_allow_html=True,
         )
 
-        x, y = st.columns(2)
-
-        with x:
-            st.metric(
-                "RSI (14)",
-                (
-                    f"{float(rsi.iloc[terminal_bar_index]):.1f}"
-                    if np.isfinite(rsi.iloc[terminal_bar_index])
-                    else "—"
-                ),
-            )
-
-            st.metric("EMA trend", trend)
-
-        with y:
-            st.metric(
-                "ATR / Price",
-                f"{atr_pct:.2f}%",
-            )
-
-            st.metric(
-                "MACD vs signal",
-                (
-                    "Above" if macd.iloc[terminal_bar_index]
-                    > macd_sig.iloc[terminal_bar_index] else "Below"
-                ),
-                help="Comparison on the same completed candle used for the "
-                     "selected BUY/SELL/WAIT signal.",
-            )
-
-        st.markdown(
-            '<div class="terminal-card">'
-            '<div class="card-label">SIGNAL QUALITY</div>'
-            '<div class="rule">'
-            "No calibrated confidence percentage yet. "
-            "Confidence requires out-of-sample validation "
-            "across markets and timeframes."
-            "</div></div>",
-            unsafe_allow_html=True,
+    with st.expander("🔎 See indicators & signal details", expanded=False):
+        i1, i2, i3, i4 = st.columns(4)
+        i1.metric(
+            "RSI (14)",
+            f"{float(rsi.iloc[terminal_bar_index]):.1f}"
+            if np.isfinite(rsi.iloc[terminal_bar_index]) else "—",
         )
-
-    # Market regime observations use the conservative penultimate bar.
-    # This prevents an in-progress Yahoo candle from being labelled final.
-    st.markdown("### Market regime intelligence")
-    regime_anchor = df.iloc[-2]
-    current_regime = str(regime_anchor["Regime"])
-    anchor_timestamp = pd.Timestamp(df.index[-2])
-    if anchor_timestamp.tzinfo is None:
-        anchor_timestamp = anchor_timestamp.tz_localize("UTC")
-    else:
-        anchor_timestamp = anchor_timestamp.tz_convert("UTC")
-
-    regime_explanations = {
-        "Trending": (
-            "The EMA20–EMA50 separation is relatively large "
-            "compared with recent average price movement."
-        ),
-        "Sideways": (
-            "EMA separation is relatively small compared "
-            "with recent average price movement."
-        ),
-        "High volatility": (
-            "ATR as a share of price exceeds its recent "
-            "historical 75th-percentile threshold."
-        ),
-        "Insufficient history": (
-            "There are not enough completed observations "
-            "to establish the rolling volatility threshold."
-        ),
-    }
-    st.caption(
-        f"Last conservatively selected candle: {anchor_timestamp.isoformat()}. "
-        "Descriptive research classification, not a live market quote."
-    )
-    rcol1, rcol2, rcol3 = st.columns([1.2, 1, 1])
-    with rcol1:
-        st.metric("Observed market regime", current_regime)
-    with rcol2:
-        st.metric("Selected strategy", MODEL_LABELS[MODEL_VERSION].split(" (")[0])
-    with rcol3:
-        st.metric("Regime evidence", "Retrospective only")
-
-    st.write(regime_explanations.get(current_regime, "Regime classification unavailable."))
-
-    # Research-only historical net results use a transparent fixed default of
-    # 4 basis points per round trip (2 spread + 1 slippage each side).
-    # They do not alter the collector, signal rules or saved predictions.
-    regime_trades = backtest(df, horizon, spread_bps=2.0, slippage_bps=1.0)
-    regime_subset = (
-        regime_trades.loc[regime_trades["Regime"] == current_regime]
-        if not regime_trades.empty else regime_trades
-    )
-    regime_n = len(regime_subset)
-    if current_regime == "Insufficient history":
-        st.info(
-            "Current regime cannot be classified reliably yet. "
-            "Historical regime-specific comparisons are unavailable."
+        i2.metric("ATR / Price", f"{atr_pct:.2f}%")
+        i3.metric("EMA trend", trend)
+        i4.metric(
+            "MACD vs signal",
+            "Above" if macd.iloc[terminal_bar_index]
+            > macd_sig.iloc[terminal_bar_index] else "Below",
         )
-    elif regime_n == 0:
-        st.info(
-            "No completed historical trades for the selected strategy "
-            "in this regime and timeframe. There is no regime-specific "
-            "performance estimate."
+        structure = (
+            "Up" if bool(last.BreakUp)
+            else "Down" if bool(last.BreakDown)
+            else "None"
         )
-    else:
-        regime_net = regime_subset["Net return %"].astype(float)
-        regime_win_pct = 100 * float((regime_net > 0).mean())
-        regime_avg_pct = float(regime_net.mean())
-        a_reg, b_reg, c_reg = st.columns(3)
-        a_reg.metric("Historical regime trades", regime_n)
-        b_reg.metric("Historical net win rate", f"{regime_win_pct:.1f}%")
-        c_reg.metric("Average estimated net / trade", f"{regime_avg_pct:+.3f}%")
         st.caption(
-            "Indicative net results use 2 bps round-trip spread plus "
-            "1 bp slippage per side (4 bps total). "
-            "This cost scenario is fixed on the Trading Terminal; "
-            "adjustable assumptions are on Historical Backtesting."
+            f"20-bar structure: {structure} · "
+            f"Bullish FVG: {'Detected' if bool(last.BullFVG) else 'Not detected'} · "
+            f"Bearish FVG: {'Detected' if bool(last.BearFVG) else 'Not detected'}"
         )
-        if regime_n < 30:
-            st.warning(
-                f"Only {regime_n} historical trade(s) occurred in this regime. "
-                "This is too little evidence to establish a reliable advantage. "
-                "The selected BUY/SELL/WAIT signal is not changed."
-            )
-        elif regime_avg_pct <= 0:
-            st.warning(
-                "Average estimated historical net return in this regime "
-                "was not positive. That does not predict the outcome "
-                "of the current signal."
+        if result:
+            if close_only_mode:
+                st.metric(
+                    "Historical estimated net win rate",
+                    f"{100 * float(trades['Net win'].mean()):.1f}%",
+                    help="Exploratory next-close simulations, 4 bps assumed costs.",
+                )
+            else:
+                st.metric(
+                    "Historical gross win rate",
+                    f"{result['Win rate %']:.1f}%",
+                    help="Historical simulation excludes execution costs.",
+                )
+            st.caption(
+                f"{result['Trades']} past simulations. "
+                "Not a prediction probability or demonstrated trading edge."
             )
         else:
-            st.info(
-                "Historical average net return was positive in this regime, "
-                "but is not a calibrated prediction or probability of profit."
+            st.caption("No completed simulated trades in this configuration.")
+        st.caption(
+            "No calibrated confidence percentage yet. "
+            "All strategies remain experimental."
+        )
+
+    with st.expander("🛡️ Safety & paper-trading tools", expanded=False):
+        st.caption(
+            "Signals are research only. None has shown a validated positive "
+            "forward trading edge. Do not risk real money based on this app."
+        )
+        with st.expander("Illustrative risk budget — PAPER ONLY"):
+            paper_balance = st.number_input(
+                "Example paper account balance (USD)",
+                min_value=100.0, value=1000.0, step=100.0,
+                key="paper_balance",
+            )
+            paper_risk_pct = st.number_input(
+                "Maximum example risk per trade (%)",
+                min_value=0.1, max_value=0.5, value=0.5,
+                step=0.1, key="paper_risk_pct",
+            )
+            paper_loss = st.number_input(
+                "Estimated USD loss per hypothetical unit",
+                min_value=0.01, value=1.0, step=0.01,
+                key="paper_loss_per_unit",
+            )
+            try:
+                plan = paper_risk_budget(
+                    paper_balance, paper_risk_pct, paper_loss
+                )
+                st.write(
+                    f"Illustrative maximum paper risk: "
+                    f"USD {plan['risk_budget_usd']:.2f} · "
+                    f"hypothetical units: {plan['max_paper_units']:,}"
+                )
+            except ValueError as exc:
+                st.warning(str(exc))
+            st.caption(
+                "Not broker position sizing. Stop gaps, execution costs "
+                "and slippage can exceed this estimate."
             )
 
-    st.markdown("### Price action & detected setups")
+    with st.expander("📊 More market research", expanded=False):
+        # Market regime observations use the conservative penultimate bar.
+        # This prevents an in-progress Yahoo candle from being labelled final.
+        st.markdown("#### Market conditions")
+        regime_anchor = df.iloc[-2]
+        current_regime = str(regime_anchor["Regime"])
+        anchor_timestamp = pd.Timestamp(df.index[-2])
+        if anchor_timestamp.tzinfo is None:
+            anchor_timestamp = anchor_timestamp.tz_localize("UTC")
+        else:
+            anchor_timestamp = anchor_timestamp.tz_convert("UTC")
+
+        regime_explanations = {
+            "Trending": (
+                "The EMA20–EMA50 separation is relatively large "
+                "compared with recent average price movement."
+            ),
+            "Sideways": (
+                "EMA separation is relatively small compared "
+                "with recent average price movement."
+            ),
+            "High volatility": (
+                "ATR as a share of price exceeds its recent "
+                "historical 75th-percentile threshold."
+            ),
+            "Insufficient history": (
+                "There are not enough completed observations "
+                "to establish the rolling volatility threshold."
+            ),
+        }
+        st.caption(
+            f"Last conservatively selected candle: {anchor_timestamp.isoformat()}. "
+            "Descriptive research classification, not a live market quote."
+        )
+        rcol1, rcol2, rcol3 = st.columns([1.2, 1, 1])
+        with rcol1:
+            st.metric("Observed market regime", current_regime)
+        with rcol2:
+            st.metric("Selected strategy", MODEL_LABELS[MODEL_VERSION].split(" (")[0])
+        with rcol3:
+            st.metric("Regime evidence", "Retrospective only")
+
+        st.write(regime_explanations.get(current_regime, "Regime classification unavailable."))
+
+        # Research-only historical net results use a transparent fixed default of
+        # 4 basis points per round trip (2 spread + 1 slippage each side).
+        # They do not alter the collector, signal rules or saved predictions.
+        regime_trades = backtest(df, horizon, spread_bps=2.0, slippage_bps=1.0)
+        regime_subset = (
+            regime_trades.loc[regime_trades["Regime"] == current_regime]
+            if not regime_trades.empty else regime_trades
+        )
+        regime_n = len(regime_subset)
+        if current_regime == "Insufficient history":
+            st.info(
+                "Current regime cannot be classified reliably yet. "
+                "Historical regime-specific comparisons are unavailable."
+            )
+        elif regime_n == 0:
+            st.info(
+                "No completed historical trades for the selected strategy "
+                "in this regime and timeframe. There is no regime-specific "
+                "performance estimate."
+            )
+        else:
+            regime_net = regime_subset["Net return %"].astype(float)
+            regime_win_pct = 100 * float((regime_net > 0).mean())
+            regime_avg_pct = float(regime_net.mean())
+            a_reg, b_reg, c_reg = st.columns(3)
+            a_reg.metric("Historical regime trades", regime_n)
+            b_reg.metric("Historical net win rate", f"{regime_win_pct:.1f}%")
+            c_reg.metric("Average estimated net / trade", f"{regime_avg_pct:+.3f}%")
+            st.caption(
+                "Indicative net results use 2 bps round-trip spread plus "
+                "1 bp slippage per side (4 bps total). "
+                "This cost scenario is fixed on the Trading Terminal; "
+                "adjustable assumptions are on Historical Backtesting."
+            )
+            if regime_n < 30:
+                st.warning(
+                    f"Only {regime_n} historical trade(s) occurred in this regime. "
+                    "This is too little evidence to establish a reliable advantage. "
+                    "The selected BUY/SELL/WAIT signal is not changed."
+                )
+            elif regime_avg_pct <= 0:
+                st.warning(
+                    "Average estimated historical net return in this regime "
+                    "was not positive. That does not predict the outcome "
+                    "of the current signal."
+                )
+            else:
+                st.info(
+                    "Historical average net return was positive in this regime, "
+                    "but is not a calibrated prediction or probability of profit."
+                )
+
+    st.markdown("### 📈 Price chart")
 
     fig = go.Figure()
     view = df.tail(130)
@@ -1560,11 +1451,9 @@ if page == "Trading Terminal":
 
     st.plotly_chart(fig, use_container_width=True)
 
-    st.info(
-        "Signals are rule-based research observations. "
-        "FVG and market structure are contextual only. "
-        "QM/MPL, liquidity sweeps and supply/demand "
-        "confluence are planned for later versions."
+    st.caption(
+        "Research chart · delayed historical candles. "
+        "Signals are unvalidated and not live trade instructions."
     )
 
 
