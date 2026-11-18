@@ -65,3 +65,21 @@ The absence of signals does not identify which specific gate is responsible. V8.
 V8.1 parameters are disclosed, mechanistic assumptions rather than rules quoted verbatim from the books. Tests include artificial bullish and bearish entry constructions, empty candles, finite warmup, causal prefixes, version registration and absence of BUY+SELL overlap. All actual V8.1 forecast accuracy and profitability remain **UNVALIDATED**.
 
 **Next checks:** (1) run **V8 Signal Engine Tests** and check every new V8.1 test; (2) run **Research V5 Strategy Benchmarks** using the original 5y/5-bar/4bps assumptions; (3) inspect the v2 trade count across all markets before considering its returns; (4) collect fresh timestamped versioned forecasts and wait until outcomes become available. These retrospective diagnostics are repeatedly inspected development data and cannot be treated as independent prospective validation.
+
+## V8.1 observed result and V8.2 diagnostic
+
+The later November 18, 2026 user-supplied five-year/15-FX-pair benchmark returned **0 development trades and 2 later-period trades in 2 markets** for `trend-pullback-reclaim-v2`. Its later-period median per-active-market win percentage was 50%, with median market mean net return **-0.61610%** at an estimated four basis-point transaction cost. Two trades cannot support an accuracy claim; V8.1 is not validated.
+
+V8.2 deliberately **does not introduce another trading model or change any signal thresholds**. The separate `diagnose_pullback_v2.py` module compares the existing V8.1 signal code to a cumulative bar-level filter funnel:
+
+- eligible past-bars / ATR
+- EMA trend
+- recent opposing candle
+- recent EMA20 test
+- directional reclaim
+- adequate body and acceptable extension
+- final actual versioned BUY or SELL decision
+
+It checks both directions and both retrospective segments across the same 15 FX pairs. The diagnostic fails closed if the independently reconstructed filters disagree with the versioned model, and emits detailed market CSVs plus combined rows. Counts are bars passing filter conditions, **not trades**; overlapping bars are not combined into trades. The user's previously inspected development and later periods are NOT independent validation. Use the funnel only to locate rare conditions before any separate candidate is proposed.
+
+Run GitHub Actions → **V8.2 Signal Filter Diagnosis** → Run workflow with `5y`. Expand `Diagnose V8.1 BUY and SELL gates` and read `V8.2 FILTER FUNNEL`. The new workflow and tests are committed but not yet verified by Actions.
