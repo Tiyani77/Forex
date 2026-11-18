@@ -36,7 +36,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-APP_VERSION = "V7.0 Integrated Research"
+APP_VERSION = "V7.1 Release Candidate"
 MODEL_VERSION = BASELINE_VERSION
 
 
@@ -770,8 +770,8 @@ st.sidebar.warning(
     "or a recommendation to trade."
 )
 st.sidebar.caption(
-    "V6.0 adds a read-only GitHub Actions forward-evidence audit. "
-    "Historical simulations and signal confidence remain distinct."
+    "V7.1 research release · shared completed-candle signals · "
+    "versioned forward tracking · no validated trading edge."
 )
 
 horizon = st.sidebar.slider(
@@ -2513,8 +2513,14 @@ elif page == "Prediction History":
     )
 
     st.caption(
-        "Verified forward tracking only. "
-        "Historical backtest signals are never imported here."
+        "Stored, timestamped forward forecasts only. Historical simulated "
+        "signals are never imported. WAIT is an abstention; pending and "
+        "unavailable records are not scored."
+    )
+    st.info(
+        "V7.1 release candidate: directional accuracy is NOT a calibrated "
+        "probability and NOT broker-executable net profit. All six models "
+        "remain unvalidated pending sufficient genuine forward outcomes."
     )
 
     if not config():
