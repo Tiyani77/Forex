@@ -16,7 +16,8 @@ from signal_models import _atr, pullback_v2_signals
 
 STAGES = ("Eligible bars", "EMA trend", "Countertrend candle in last 3",
           "EMA20 touched in last 3", "Directional reclaim",
-          "Body and extension", "Final qualifying signal")
+          "Minimum candle body", "EMA20 extension limit",
+          "Final qualifying signal")
 
 
 def filter_funnel(candles, split=0.70):
@@ -70,7 +71,7 @@ def filter_funnel(candles, split=0.70):
             current = eligible.copy()
             gates = (
                 eligible, trend, correction, level, direction,
-                body & extension
+                body, extension
             )
             for idx, (stage, gate) in enumerate(zip(STAGES, gates)):
                 if idx:
@@ -83,6 +84,29 @@ def filter_funnel(candles, split=0.70):
                     "stage_order": idx,
                     "eligible_bars": int(eligible.loc[indexes].sum()),
                 })
+            # Independently assess both final gates at the SAME candidate
+            # stage, not only in the order used by the cumulative funnel.
+            reclaim_candidates = (
+                eligible & trend & correction & level & direction
+            )
+            rows.append({
+                "period": window, "side": side,
+                "stage": "EMA20 extension pass (independent)",
+                "stage_order": len(STAGES),
+                "passing_bars": int(
+                    (reclaim_candidates & extension).loc[indexes].sum()
+                ),
+                "eligible_bars": int(eligible.loc[indexes].sum()),
+            })
+            rows.append({
+                "period": window, "side": side,
+                "stage": "Minimum body pass (independent)",
+                "stage_order": len(STAGES) + 1,
+                "passing_bars": int(
+                    (reclaim_candidates & body).loc[indexes].sum()
+                ),
+                "eligible_bars": int(eligible.loc[indexes].sum()),
+            })
             # Check that standalone independent diagnostic reproduces
             # the exact, versioned output of the actual signal model.
             if not current.fillna(False).equals(
@@ -140,14 +164,14 @@ def main():
     (output / "v82_v81_funnel_notes.txt").write_text(
         "V8.2 OBSERVATIONAL RESEARCH — not validation, trade entries, "
         "or accuracy.\n"
-        "Cumulative AND-gate bar counts for v8.1, separately BUY and SELL.\n"
+        "Cumulative AND-gate bar counts and two INDEPENDENT final gate counts for v8.1, separately BUY and SELL.\n"
         "These bar counts can overlap across adjacent candles; "
         "backtests skip overlapping trades.\n"
         "The V8.1 signal rules remain unchanged. Existing inspected history "
         "must NOT be described as an untouched test set.\n"
         + "\n".join(errors)
     )
-    print("\nV8.2 FILTER FUNNEL — UNCHANGED V8.1 RULES (bar counts)")
+    print("\nV8.2 FILTER FUNNEL — BODY vs EXTENSION DIAGNOSIS (bar counts)")
     print(aggregate.to_string(index=False))
     if errors:
         print("\nUnavailable: " + "; ".join(errors))
