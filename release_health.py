@@ -32,8 +32,8 @@ def check_release(root="."):
         except (SyntaxError, UnicodeDecodeError) as exc:
             problems.append(f"Invalid Python file: {filename}: {exc}")
 
-    if len(MODEL_LABELS) != 7:
-        problems.append("Expected seven independently versioned research models")
+    if len(MODEL_LABELS) != 8:
+        problems.append("Expected eight independently versioned research models")
     if len(set(MODEL_LABELS)) != len(MODEL_LABELS):
         problems.append("Duplicate model version identifiers")
     if len(set(MODEL_LABELS.values())) != len(MODEL_LABELS):
@@ -45,7 +45,7 @@ def check_release(root="."):
     collector_file = root / "collect_predictions.py"
     if app_file.exists():
         app = app_file.read_text(encoding="utf-8")
-        if 'APP_VERSION = "V8.0 Signal Research"' not in app:
+        if 'APP_VERSION = "V8.1 Signal Research"' not in app:
             problems.append("App release label has not been finalized")
         if 'latest_signal(' not in app or 'model_flags(' not in app:
             problems.append("Terminal is not wired to the shared signal engine")
@@ -64,7 +64,7 @@ def check_release(root="."):
     if problems:
         raise RuntimeError("\n".join(problems))
     return {
-        "release": "V8.0",
+        "release": "V8.1",
         "registered_research_models": len(MODEL_LABELS),
         "fx_benchmark_markets": len(FX_MARKETS),
         "source_modules_checked": len(REQUIRED_FILES),
