@@ -2895,6 +2895,58 @@ elif page == "Prediction History":
                     "to report. Results will appear after the evaluator "
                     "records genuinely future completed candle outcomes."
                 )
+            st.markdown("#### Quick intraday paper trial")
+            trial_rows = pd.DataFrame(records)
+            if trial_rows.empty:
+                st.caption(
+                    "No saved predictions yet. The intraday paper collector "
+                    "runs on fresh completed Yahoo 5m candles only."
+                )
+            else:
+                for trial_col in ("timeframe", "model_version", "signal",
+                                  "status"):
+                    if trial_col not in trial_rows.columns:
+                        trial_rows[trial_col] = ""
+                intraday_rows = trial_rows.loc[
+                    trial_rows["timeframe"].isin(["5m", "15m"])
+                    & trial_rows["model_version"].eq(CLOSE_CONFIRM_VERSION)
+                    & trial_rows["signal"].isin(["BUY", "SELL"])
+                ].copy()
+                ti1, ti2, ti3 = st.columns(3)
+                ti1.metric("Saved 5m/15m trials", len(intraday_rows))
+                ti2.metric(
+                    "Awaiting future candles",
+                    int(intraday_rows["status"].eq("pending").sum()),
+                )
+                ti3.metric(
+                    "Completed trials",
+                    int(intraday_rows["status"].eq("evaluated").sum()),
+                )
+                if intraday_rows.empty:
+                    st.info(
+                        "No intraday Close Trend + Pullback predictions have "
+                        "been saved yet. A qualifying BUY/SELL and a fresh "
+                        "provider candle are both required. WAIT and stale "
+                        "candles are intentionally not saved."
+                    )
+                else:
+                    grouped_trial = (
+                        intraday_rows.groupby(
+                            ["timeframe", "status"], dropna=False
+                        ).size().rename("Forecasts").reset_index()
+                    )
+                    st.dataframe(
+                        grouped_trial, hide_index=True,
+                        use_container_width=True,
+                    )
+            st.caption(
+                "The intraday experiment uses 2 subsequent completed "
+                "5m or 15m candles, rather than five daily candles. "
+                "Provider and GitHub scheduling delays can be substantial; "
+                "results are reference-close direction tests, not "
+                "executable broker trade profits."
+            )
+
             st.markdown("#### Results by strategy")
             st.dataframe(
                 model_board[[
