@@ -57,7 +57,10 @@ def close_only_trade_rows(candles, version=CLOSE_CONFIRM_VERSION,
             "gross_pct": gross, "net_pct": gross - cost_bps / 100,
         })
         next_allowed = exit_at + 1
-    return pd.DataFrame(rows)
+    return pd.DataFrame(rows, columns=[
+        "signal_bar", "entry_bar", "exit_bar", "direction",
+        "gross_pct", "net_pct"
+    ])
 
 
 def market_report(candles, market, split=.70, cost_bps=4.0, horizon=5):
