@@ -24,16 +24,17 @@ class FilterFunnelTests(unittest.TestCase):
             for side in ("BUY", "SELL"):
                 group = [r for r in report if r["period"] == period
                          and r["side"] == side]
-                counts = [r["passing_bars"] for r in group[:len(STAGES)]]
+                ordered = sorted(group, key=lambda r: r["stage_order"])
+                counts = [r["passing_bars"] for r in ordered[:len(STAGES)]]
                 self.assertEqual(len(counts), len(STAGES))
                 self.assertEqual(counts, sorted(counts, reverse=True))
                 self.assertEqual(counts[-1], counts[-2])
-                self.assertEqual(group[-2]["stage"],
+                self.assertEqual(ordered[-2]["stage"],
                                  "EMA20 extension pass (independent)")
-                self.assertEqual(group[-1]["stage"],
+                self.assertEqual(ordered[-1]["stage"],
                                  "Minimum body pass (independent)")
-                self.assertGreaterEqual(group[-1]["passing_bars"], counts[-1])
-                self.assertGreaterEqual(group[-2]["passing_bars"], counts[-1])
+                self.assertGreaterEqual(ordered[-1]["passing_bars"], counts[-1])
+                self.assertGreaterEqual(ordered[-2]["passing_bars"], counts[-1])
 
     def test_report_is_nonmutating(self):
         before = self.prices.copy(deep=True)
