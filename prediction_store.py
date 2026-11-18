@@ -257,6 +257,46 @@ def list_predictions(limit=500):
     )
 
 
+def list_predictions_paginated(page_size=500, max_records=5000):
+    """Fetch multiple pages for dashboard history without silent 500-row loss.
+
+    Returns (records, truncated). Use a deterministic secondary sort key;
+    capped reads are explicitly labelled incomplete in the UI.
+    """
+    page_size = max(1, min(int(page_size), 1000))
+    max_records = max(1, int(max_records))
+    records = []
+    offset = 0
+    while len(records) < max_records:
+        take = min(page_size, max_records - len(records))
+        page = _call(
+            "GET", TABLE,
+            params={
+                "select": "*",
+                "order": "recorded_at.desc,id.desc",
+                "limit": str(take),
+                "offset": str(offset),
+            },
+        )
+        if not isinstance(page, list):
+            raise RuntimeError("Unexpected prediction history response")
+        records.extend(page)
+        offset += len(page)
+        if len(page) < take:
+            return records, False
+    # Check for one additional record rather than guessing at truncation.
+    additional = _call(
+        "GET", TABLE,
+        params={
+            "select": "id",
+            "order": "recorded_at.desc,id.desc",
+            "limit": "1",
+            "offset": str(offset),
+        },
+    )
+    return records, bool(additional)
+
+
 def complete_prediction(record_id, result):
     """
     Update a pending prediction with its outcome.
