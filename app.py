@@ -9,6 +9,7 @@ from signal_models import (
     BASELINE_VERSION, MOMENTUM_VERSION, CHANNEL_VERSION,
     SUPPLY_DEMAND_VERSION, STRUCTURE_VERSION, LIQUIDITY_SWEEP_VERSION,
     CONFLUENCE_VERSION, confluence_diagnostics,
+    PULLBACK_V2_VERSION, pullback_v2_diagnostics,
     MODEL_LABELS, momentum_signals,
     apply_research_model,
 )
@@ -37,7 +38,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-APP_VERSION = "V8.0 Signal Research"
+APP_VERSION = "V8.1 Signal Research"
 MODEL_VERSION = BASELINE_VERSION
 
 
@@ -758,7 +759,7 @@ tf = st.sidebar.selectbox(
 strategy_label = st.sidebar.selectbox(
     "Signal strategy",
     list(MODEL_LABELS.values()),
-    index=list(MODEL_LABELS).index(CONFLUENCE_VERSION),
+    index=list(MODEL_LABELS).index(PULLBACK_V2_VERSION),
     help="Book-informed research candidates are unvalidated.",
 )
 MODEL_VERSION = next(
@@ -854,6 +855,11 @@ signal = terminal_decision["signal"]
 market_bias = "BULLISH" if last.EMA20 > last.EMA50 else "BEARISH"
 if MODEL_VERSION == CONFLUENCE_VERSION:
     _, _, bias_series = confluence_diagnostics(
+        raw.iloc[:terminal_bar_index + 1]
+    )
+    market_bias = str(bias_series.iloc[-1])
+if MODEL_VERSION == PULLBACK_V2_VERSION:
+    _, _, bias_series = pullback_v2_diagnostics(
         raw.iloc[:terminal_bar_index + 1]
     )
     market_bias = str(bias_series.iloc[-1])
@@ -1058,7 +1064,16 @@ if page == "Trading Terminal":
         )
 
     with right:
-        if MODEL_VERSION == CONFLUENCE_VERSION:
+        if MODEL_VERSION == PULLBACK_V2_VERSION:
+            signal_description = (
+                "Trend pullback/reclaim V8.1 research candidate: "
+                "EMA20/50 trend, prior three-bar corrective phase, "
+                "current trend resumption and ATR extension limit."
+                if signal != "WAIT" else
+                f"{bias_direction}: awaiting an actionable, confirmed "
+                "pullback-and-reclaim candle."
+            )
+        elif MODEL_VERSION == CONFLUENCE_VERSION:
             signal_description = (
                 "Book-informed continuation proxy: aligned trend, "
                 "prior corrective pullback, renewed directional candle "
