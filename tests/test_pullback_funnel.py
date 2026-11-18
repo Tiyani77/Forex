@@ -19,14 +19,21 @@ class FilterFunnelTests(unittest.TestCase):
 
     def test_funnel_must_match_model(self):
         report = filter_funnel(self.prices)
-        self.assertEqual(len(report), 2 * 2 * len(STAGES))
+        self.assertEqual(len(report), 2 * 2 * (len(STAGES) + 2))
         for period in ("Development", "Later period"):
             for side in ("BUY", "SELL"):
                 group = [r for r in report if r["period"] == period
                          and r["side"] == side]
-                counts = [r["passing_bars"] for r in group]
+                counts = [r["passing_bars"] for r in group[:len(STAGES)]]
                 self.assertEqual(len(counts), len(STAGES))
                 self.assertEqual(counts, sorted(counts, reverse=True))
+                self.assertEqual(counts[-1], counts[-2])
+                self.assertEqual(group[-2]["stage"],
+                                 "EMA20 extension pass (independent)")
+                self.assertEqual(group[-1]["stage"],
+                                 "Minimum body pass (independent)")
+                self.assertGreaterEqual(group[-1]["passing_bars"], counts[-1])
+                self.assertGreaterEqual(group[-2]["passing_bars"], counts[-1])
 
     def test_report_is_nonmutating(self):
         before = self.prices.copy(deep=True)
