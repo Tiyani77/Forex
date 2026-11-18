@@ -1170,6 +1170,21 @@ if page == "Trading Terminal":
                         "Age (minutes)": item["age_minutes"],
                         "Evaluation": item["status"].capitalize(),
                     })
+                # Compact, prominent signal tiles from saved forecast rows.
+                # Use Streamlit native metrics rather than raw DB-backed HTML.
+                featured = shown[:4]
+                tiles = st.columns(len(featured))
+                for tile, item in zip(tiles, featured):
+                    with tile:
+                        st.metric(
+                            f"{item['pair']} · {item['timeframe']}",
+                            item["signal"],
+                            help=(
+                                f"Saved at {item['recorded_at'].isoformat()} "
+                                f"(UTC); {item['status']}. "
+                                "Historical paper forecast only."
+                            ),
+                        )
                 st.dataframe(
                     pd.DataFrame(shown_rows),
                     hide_index=True, use_container_width=True,
