@@ -28,6 +28,7 @@ from prediction_store import (
 from prediction_tracking import tracking_overview
 from forward_evidence import summarise_forward
 from signal_readiness import model_readiness, paper_risk_budget
+from forward_pnl import evaluated_reference_returns, reference_summary, reference_scenarios
 
 
 # ============================================================
@@ -41,7 +42,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-APP_VERSION = "V8.4 Signal Research"
+APP_VERSION = "V8.6 Forward Performance Research"
 MODEL_VERSION = BASELINE_VERSION
 
 
@@ -2833,6 +2834,119 @@ elif page == "Prediction History":
                 "profitable entry/exit result nor independent evidence "
                 "of a tradable strategy. Status never auto-promotes."
             )
+            # V8.6: completed forward reference-close returns only. This is
+            # not a brokerage P&L ledger: no actual fills or account balances.
+            st.markdown("### V8.6 · Forward return & cost dashboard")
+            st.caption(
+                "Only timestamped, evaluated BUY/SELL forecasts appear here. "
+                "The recorded directional return is measured from the "
+                "SIGNAL CANDLE CLOSE to the later outcome close, not an "
+                "executable entry. A cost deduction is a sensitivity "
+                "scenario, NOT realised account profit."
+            )
+            assumed_bps = st.slider(
+                "Illustrative round-trip trading cost (basis points)",
+                min_value=0, max_value=50, value=4, step=1,
+                key="forward_pnl_cost_bps",
+            )
+            evidence_rows = evaluated_reference_returns(
+                records, cost_bps=float(assumed_bps)
+            )
+            model_board = reference_summary(
+                evidence_rows, model_versions=list(MODEL_LABELS)
+            )
+            completed_count = len(evidence_rows)
+            forward_pending = sum(
+                str(x.get("status", "")).lower() == "pending"
+                and str(x.get("signal", "")).upper() in ("BUY", "SELL")
+                for x in records
+            )
+            v1, v2, v3, v4 = st.columns(4)
+            v1.metric("Valid evaluated forecasts", completed_count)
+            v2.metric("Pending BUY/SELL", forward_pending)
+            v3.metric("Assumed cost", f"{assumed_bps} bps")
+            if completed_count:
+                v4.metric(
+                    "Mean cost-adjusted reference move",
+                    f"{evidence_rows['cost_adjusted_reference_pct'].mean():.3f}%",
+                    help=(
+                        "Pooled across all model forecasts, including "
+                        "potentially correlated or repeated market exposures. "
+                        "Not a real trade return or account P&L."
+                    ),
+                )
+            else:
+                v4.metric("Cost-adjusted return", "Not available")
+                st.info(
+                    "No qualifying completed forward outcomes yet. "
+                    "There is no realised or estimated strategy profit "
+                    "to report. Results will appear after the evaluator "
+                    "records genuinely future completed candle outcomes."
+                )
+            st.markdown("#### Results by strategy")
+            st.dataframe(
+                model_board[[
+                    "model_version", "evaluated", "markets",
+                    "mean_reference_pct", "mean_cost_adjusted_pct",
+                    "median_cost_adjusted_pct",
+                    "cost_adjusted_positive_pct",
+                ]].rename(columns={
+                    "model_version": "Strategy",
+                    "evaluated": "Evaluated",
+                    "markets": "Markets",
+                    "mean_reference_pct": "Mean directional move (%)",
+                    "mean_cost_adjusted_pct": "Mean cost-adjusted proxy (%)",
+                    "median_cost_adjusted_pct": "Median cost-adjusted proxy (%)",
+                    "cost_adjusted_positive_pct": "Positive after assumed cost (%)",
+                }),
+                hide_index=True, use_container_width=True,
+            )
+            st.caption(
+                "Models with zero evaluated forecasts show blank performance, "
+                "not a 0% win rate. Shared market moves and overlapping "
+                "forecasts are not independent profits."
+            )
+            if completed_count:
+                filtered_versions = sorted(
+                    evidence_rows["model_version"].unique()
+                )
+                selected_v86 = st.selectbox(
+                    "Inspect evaluated strategy",
+                    filtered_versions, key="v86_model_filter"
+                )
+                model_items = evidence_rows.loc[
+                    evidence_rows["model_version"] == selected_v86
+                ].copy()
+                if not model_items.empty:
+                    st.markdown("#### Reference-close outcome details")
+                    st.dataframe(
+                        model_items[[
+                            "recorded_at", "instrument", "signal",
+                            "signal_bar_at", "outcome_bar_at",
+                            "directional_return_pct",
+                            "cost_adjusted_reference_pct",
+                        ]].sort_values("recorded_at", ascending=False).head(250),
+                        hide_index=True, use_container_width=True,
+                    )
+                scenario_rows = reference_scenarios(
+                    records, cost_levels=(0.0, 4.0, 10.0)
+                )
+                st.markdown("#### Trading-cost sensitivity")
+                st.dataframe(
+                    scenario_rows.rename(columns={
+                        "model_version": "Strategy",
+                        "cost_bps": "Assumed round-trip cost (bps)",
+                        "evaluated": "Evaluated",
+                        "mean_cost_adjusted_pct": "Mean reference proxy (%)",
+                        "cost_adjusted_positive_pct": "Positive after assumed cost (%)",
+                    }),
+                    hide_index=True, use_container_width=True,
+                )
+                st.caption(
+                    "0/4/10 bps scenarios are hypothetical. They do NOT "
+                    "estimate entry-price drift, broker execution, "
+                    "overnight swaps, leverage, gaps or currency conversion."
+                )
             if history_truncated:
                 st.warning(
                     "History is capped at the latest 5,000 saved records. "
