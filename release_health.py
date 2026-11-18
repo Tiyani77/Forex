@@ -47,7 +47,7 @@ def check_release(root="."):
     collector_file = root / "collect_predictions.py"
     if app_file.exists():
         app = app_file.read_text(encoding="utf-8")
-        if 'APP_VERSION = "V8.6 Forward Performance Research"' not in app:
+        if 'APP_VERSION = "V8.8 Fast Paper Outlook"' not in app:
             problems.append("App release label has not been finalized")
         if 'latest_signal(' not in app or 'model_flags(' not in app:
             problems.append("Terminal is not wired to the shared signal engine")
@@ -70,7 +70,7 @@ def check_release(root="."):
     if problems:
         raise RuntimeError("\n".join(problems))
     return {
-        "release": "V8.6",
+        "release": "V8.8",
         "registered_research_models": len(MODEL_LABELS),
         "fx_benchmark_markets": len(FX_MARKETS),
         "source_modules_checked": len(REQUIRED_FILES),
