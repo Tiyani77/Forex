@@ -1,0 +1,48 @@
+name: V8.6 Forward P&L Proxy Checks
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "forward_pnl.py"
+      - "app.py"
+      - "release_health.py"
+      - "tests/test_forward_pnl.py"
+      - ".github/workflows/forward_pnl_v86.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  forward-accounting:
+    name: V8.6 forward reference-return checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Configure Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install offline regression dependencies
+        run: pip install pandas numpy yfinance requests streamlit plotly
+
+      - name: Compile app and V8.6 accounting
+        run: |
+          python -m compileall -q app.py forward_pnl.py forward_evidence.py signal_readiness.py tests
+
+      - name: Run all regression tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Verify release wiring
+        run: python release_health.py
+
+      - name: Keep profitability status honest
+        run: |
+          echo "V8.6 code and historical accounting invariants checked."
+          echo "No Supabase production data, broker fills, or profitability are validated by these offline tests."
