@@ -39,7 +39,7 @@ class SharedForecastEngineTests(unittest.TestCase):
         pd.testing.assert_series_equal(buy1, buy2)
         pd.testing.assert_series_equal(sell1, sell2)
 
-    def test_all_six_models_use_same_completed_bar(self):
+    def test_all_registered_models_use_same_completed_bar(self):
         for version in MODEL_LABELS:
             latest = latest_signal(
                 self.candles, version, now=self.clock
