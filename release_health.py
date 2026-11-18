@@ -14,6 +14,7 @@ REQUIRED_FILES = (
     "collect_predictions.py", "evaluate_predictions.py",
     "prediction_store.py", "prediction_tracking.py",
     "prediction_monitor.py", "forward_evidence.py",
+    "signal_readiness.py", "research_close_signals.py",
     "research_multimarket.py", "research_robustness.py",
     "research_release_audit.py",
 )
