@@ -1,0 +1,69 @@
+name: Intraday Paper Trial (5m / 15m)
+
+on:
+  # 5-minute research observations taken approximately every 15 minutes.
+  # Actions schedules are best-effort, NOT real-time; stale data is skipped.
+  schedule:
+    - cron: "7,22,37,52 * * * 1-5"
+  workflow_dispatch:
+    inputs:
+      timeframe:
+        description: "Intraday historical market candle size"
+        type: choice
+        options:
+          - 5m
+          - 15m
+        default: 5m
+        required: true
+      dry_run:
+        description: "Preview signals without saving genuine forward forecasts"
+        type: boolean
+        default: false
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  intraday-paper-collector:
+    name: Collect timestamp-valid intraday research signals
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install pandas numpy yfinance requests streamlit
+
+      - name: Check intraday forward-only invariants
+        run: |
+          python -m compileall -q intraday_paper_trial.py signal_models.py forecast_engine.py tests/test_intraday_paper_trial.py
+          python -m unittest discover -s tests -p 'test_intraday_paper_trial.py' -v
+
+      - name: Intraday research capture (never sends orders)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          TRIAL_TF: ${{ inputs.timeframe }}
+          TRIAL_DRY_RUN: ${{ inputs.dry_run }}
+          TRIGGER: ${{ github.event_name }}
+        run: |
+          TF="${TRIAL_TF:-5m}"
+          if [ "$TRIGGER" = "workflow_dispatch" ] && [ "$TRIAL_DRY_RUN" = "true" ]; then
+            python intraday_paper_trial.py --timeframe "$TF" --dry-run
+          else
+            python intraday_paper_trial.py --timeframe "$TF"
+          fi
+
+      - name: Research-only limitation
+        if: always()
+        run: |
+          echo "No brokerage order is sent. Yahoo data may be delayed."
+          echo "BUY/SELL signals can be absent; stale signals are correctly skipped."
+          echo "Existing EMA/close-pullback model rules are unchanged."
