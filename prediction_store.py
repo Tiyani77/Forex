@@ -8,6 +8,7 @@ Never expose Supabase secret keys in GitHub.
 """
 
 import os
+import pandas as pd
 import requests
 try:
     import streamlit as st
@@ -299,6 +300,34 @@ def list_predictions_paginated(page_size=500, max_records=5000):
         },
     )
     return records, bool(additional)
+
+
+def prediction_exists(ticker, timeframe, signal_bar_at, model_version,
+                      horizon_bars):
+    """Check an exact forecast key regardless of how old it is.
+
+    Unlike fetching only the latest 500 records, this read cannot silently
+    overlook older duplicates. For concurrency-safe uniqueness, Supabase
+    should also enforce a unique database index on these five fields.
+    """
+    stamp = pd.Timestamp(signal_bar_at)
+    if stamp.tzinfo is None:
+        stamp = stamp.tz_localize("UTC")
+    else:
+        stamp = stamp.tz_convert("UTC")
+    rows = _call(
+        "GET", TABLE,
+        params={
+            "select": "id",
+            "ticker": f"eq.{ticker}",
+            "timeframe": f"eq.{timeframe}",
+            "signal_bar_at": f"eq.{stamp.isoformat()}",
+            "model_version": f"eq.{model_version}",
+            "horizon_bars": f"eq.{int(horizon_bars)}",
+            "limit": "1",
+        },
+    )
+    return bool(rows)
 
 
 def complete_prediction(record_id, result):
