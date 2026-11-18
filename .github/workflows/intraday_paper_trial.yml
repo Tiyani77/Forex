@@ -15,6 +15,14 @@ on:
           - 15m
         default: 5m
         required: true
+      model:
+        description: "Paper forecast strategy"
+        type: choice
+        options:
+          - close-momentum-probe-v1
+          - close-trend-pullback-v1
+        default: close-momentum-probe-v1
+        required: true
       dry_run:
         description: "Preview signals without saving genuine forward forecasts"
         type: boolean
@@ -51,12 +59,14 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           TRIAL_TF: ${{ inputs.timeframe }}
+          TRIAL_MODEL: ${{ inputs.model }}
           TRIAL_DRY_RUN: ${{ inputs.dry_run }}
           TRIGGER: ${{ github.event_name }}
         run: |
           TF="${TRIAL_TF:-5m}"
+          MODEL="${TRIAL_MODEL:-close-momentum-probe-v1}"
           if [ "$TRIGGER" = "workflow_dispatch" ] && [ "$TRIAL_DRY_RUN" = "true" ]; then
-            python intraday_paper_trial.py --timeframe "$TF" --dry-run
+            python intraday_paper_trial.py --timeframe "$TF" --model "$MODEL" --model "$MODEL" --dry-run
           else
             python intraday_paper_trial.py --timeframe "$TF"
           fi
@@ -66,4 +76,4 @@ jobs:
         run: |
           echo "No brokerage order is sent. Yahoo data may be delayed."
           echo "BUY/SELL signals can be absent; stale signals are correctly skipped."
-          echo "Existing EMA/close-pullback model rules are unchanged."
+          echo "Strict close-pullback remains available; fast probe is experimental."
