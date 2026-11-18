@@ -1,4 +1,4 @@
-name: V7.1 Final Release Checks
+name: V8 Signal Engine Tests
 
 on:
   workflow_dispatch:
@@ -54,6 +54,6 @@ jobs:
       - name: Release check summary
         if: always()
         run: |
-          echo "V7.1 code release audit executed."
+          echo "V8 book-informed signal engine research audit executed."
           echo "No trading model is automatically promoted."
           echo "Live Streamlit UI, Supabase data and broker execution are not covered by this offline job."
