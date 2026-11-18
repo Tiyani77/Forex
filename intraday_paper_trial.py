@@ -13,7 +13,7 @@ import sys
 import pandas as pd
 import yfinance as yf
 
-from forecast_engine import latest_signal
+from forecast_engine import model_flags, signal_label
 from prediction_store import config, prediction_exists, save_prediction
 from signal_models import CLOSE_CONFIRM_VERSION, FAST_PROBE_VERSION
 
@@ -48,22 +48,40 @@ def trial_eligibility(candles, timeframe, model_version=FAST_PROBE_VERSION,
     """
     if timeframe not in CONFIG:
         raise ValueError("Only 5m and 15m completed candles are supported.")
-    decision = latest_signal(
-        candles, model_version, timeframe=timeframe, now=now,
-        minimum_bars=65,
-    )
-    if decision is None:
-        return None, "insufficient_completed_bars"
-    bar_open = pd.to_datetime(decision["signal_bar_at"], utc=True)
     now_utc = (pd.Timestamp.now(tz="UTC") if now is None
                else pd.to_datetime(now, utc=True))
+    if candles is None or candles.empty:
+        return None, "insufficient_completed_bars"
+    ordered = candles.sort_index()
+    times = pd.to_datetime(ordered.index, utc=True)
     duration = pd.Timedelta(CONFIG[timeframe][2])
-    # The bar used by the model must already be closed; the immediately
-    # following bar must NOT already be closed when the forecast is recorded.
-    if now_utc < bar_open + duration:
+    # Yahoo may supply a forming last bar, or only fully closed bars.
+    # Determine completion by candle timestamps rather than *always*
+    # excluding the last provider bar.
+    closed_positions = [
+        k for k, opened in enumerate(times)
+        if opened + duration <= now_utc
+    ]
+    if not closed_positions:
         return None, "signal_bar_not_closed"
+    position = closed_positions[-1]
+    if position + 1 < 65:
+        return None, "insufficient_completed_bars"
+    bar_open = times[position]
     if now_utc >= bar_open + 2 * duration:
         return None, "stale_provider_bar_skip"
+    # Only the prefix ending on the completed decision candle is
+    # supplied to the existing model. The signal and anchor are
+    # computed from genuine provider data, not a synthetic extra bar.
+    prefix = ordered.iloc[:position + 1]
+    buy, sell = model_flags(prefix, model_version)
+    decision = {
+        "signal": signal_label(buy.iloc[-1], sell.iloc[-1]),
+        "signal_bar_at": bar_open.isoformat(),
+        "reference_close": float(prefix["Close"].iloc[-1]),
+        "position": position,
+        "model_version": model_version,
+    }
     return decision, "eligible_before_first_future_close"
 
 
