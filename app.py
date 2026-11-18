@@ -1155,6 +1155,24 @@ if page == "Trading Terminal":
             unsafe_allow_html=True,
         )
 
+    # Show stale data prominently; historical market direction is NOT a
+    # live signal if the source has stopped delivering completed candles.
+    candle_duration = {
+        "5m": pd.Timedelta(minutes=5),
+        "15m": pd.Timedelta(minutes=15),
+        "1h": pd.Timedelta(hours=1),
+        "4h": pd.Timedelta(hours=4),
+        "1d": pd.Timedelta(days=1),
+    }[tf]
+    observed_bar_at = pd.to_datetime(last_bar_time, utc=True)
+    bar_age = pd.Timestamp.now(tz="UTC") - observed_bar_at
+    if bar_age > 3 * candle_duration:
+        st.warning(
+            "Market data is older than expected for this timeframe. "
+            "The displayed BUY/SELL/WAIT is an old completed-candle "
+            "research observation, NOT a current live entry."
+        )
+
     with center:
         if MODEL_VERSION == FAST_PROBE_VERSION:
             st.caption(
