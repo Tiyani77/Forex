@@ -450,12 +450,12 @@ def indicators(data):
 # HISTORICAL BACKTESTING
 # ============================================================
 
-def backtest(df, horizon=5, spread_bps=0.0, slippage_bps=0.0, commission_bps=0.0):
+def backtest(df, horizon=5, spread_bps=0.0, slippage_bps=0.0, commission_bps=0.0, entry_mode="next_open"):
     """
     Historical simulation:
     - Signal on completed candle
-    - Enter at next candle open
-    - Exit after horizon bars
+    - Next-open mode: enter next candle open, exit signal+horizon close
+    - Next-close mode: enter next completed close, exit entry+horizon close
     - Skip overlapping trades
 
     Returns are indicative price changes, not executable P&L.
@@ -466,7 +466,10 @@ def backtest(df, horizon=5, spread_bps=0.0, slippage_bps=0.0, commission_bps=0.0
     results = []
     next_allowed = 50
 
-    for i in range(50, len(df) - horizon):
+    if entry_mode not in ("next_open", "next_close"):
+        raise ValueError("Unsupported historical entry convention")
+    extra = 1 if entry_mode == "next_close" else 0
+    for i in range(50, len(df) - horizon - extra):
 
         if i < next_allowed:
             continue
@@ -480,8 +483,13 @@ def backtest(df, horizon=5, spread_bps=0.0, slippage_bps=0.0, commission_bps=0.0
         if side == 0:
             continue
 
-        entry = float(df.Open.iloc[i + 1])
-        exit_price = float(df.Close.iloc[i + horizon])
+        if entry_mode == "next_close":
+            entry = float(df.Close.iloc[i + 1])
+            exit_bar = i + horizon + 1
+        else:
+            entry = float(df.Open.iloc[i + 1])
+            exit_bar = i + horizon
+        exit_price = float(df.Close.iloc[exit_bar])
 
         if (
             not np.isfinite(entry)
@@ -498,7 +506,7 @@ def backtest(df, horizon=5, spread_bps=0.0, slippage_bps=0.0, commission_bps=0.0
 
         results.append({
             "Signal time": str(df.index[i]),
-            "Exit time": str(df.index[i + horizon]),
+            "Exit time": str(df.index[exit_bar]),
             "Regime": str(df["Regime"].iloc[i]) if "Regime" in df else "Unknown",
             "Direction": "BUY" if side == 1 else "SELL",
             "Entry": entry,
@@ -510,7 +518,7 @@ def backtest(df, horizon=5, spread_bps=0.0, slippage_bps=0.0, commission_bps=0.0
             "Net win": net_return > 0,
         })
 
-        next_allowed = i + horizon + 1
+        next_allowed = exit_bar + 1
 
     return pd.DataFrame(results)
 
@@ -829,7 +837,18 @@ if len(raw) < 60:
 
 df = indicators(raw)
 df["Buy"], df["Sell"] = model_flags(df, MODEL_VERSION)
-trades = backtest(df, horizon)
+# Yahoo daily FX Open/Close bodies are unreliable in the observed feed.
+# The V8.4 close-only strategy therefore uses next-completed-Close
+# hypothetical entry rather than the misleading next-Open proxy.
+close_only_mode = (
+    MODEL_VERSION == CLOSE_CONFIRM_VERSION and tf == "1d"
+    and symbol.endswith("=X")
+)
+trades = backtest(
+    df, horizon,
+    spread_bps=4.0 if close_only_mode else 0.0,
+    entry_mode="next_close" if close_only_mode else "next_open",
+)
 result = stats(trades)
 
 # Terminal, manual save and collector share the exact completed-bar
@@ -1015,20 +1034,32 @@ if page == "Trading Terminal":
         )
 
         if result:
-            st.metric(
-                "Historical gross win rate",
-                f"{result['Win rate %']:.1f}%",
-                help=(
-                    f"{result['Trades']} historical simulated "
-                    "signals; no trading costs"
-                ),
-            )
-
-            st.caption(
-                f"Based on {result['Trades']} non-overlapping "
-                "completed historical trades. "
-                "Not signal confidence."
-            )
+            if close_only_mode:
+                st.metric(
+                    "Historical estimated net win rate",
+                    f"{100 * float(trades['Net win'].mean()):.1f}%",
+                    help=(
+                        "V8.4 exploratory simulation: entry at NEXT DAILY "
+                        "CLOSE after signal, exit after selected holding "
+                        "bars, 4 bps assumed round-trip costs."
+                    ),
+                )
+                st.caption(
+                    f"{result['Trades']} non-overlapping historical "
+                    "simulations; next-close entry, estimated 4 bps "
+                    "cost. Not a broker fill, calibrated confidence "
+                    "or independent forward accuracy."
+                )
+            else:
+                st.metric(
+                    "Historical gross win rate",
+                    f"{result['Win rate %']:.1f}%",
+                    help=f"{result['Trades']} simulated signals; no costs",
+                )
+                st.caption(
+                    f"Based on {result['Trades']} completed historical "
+                    "simulations. Not signal confidence."
+                )
         else:
             st.info(
                 "No completed backtest trades for these settings."
