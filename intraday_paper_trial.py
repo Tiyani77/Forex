@@ -15,7 +15,7 @@ import yfinance as yf
 
 from forecast_engine import latest_signal
 from prediction_store import config, prediction_exists, save_prediction
-from signal_models import CLOSE_CONFIRM_VERSION
+from signal_models import CLOSE_CONFIRM_VERSION, FAST_PROBE_VERSION
 
 MARKETS = {
     "EUR/USD": "EURUSD=X",
@@ -38,7 +38,7 @@ CONFIG = {
 HORIZON = 2
 
 
-def trial_eligibility(candles, timeframe, model_version=CLOSE_CONFIRM_VERSION,
+def trial_eligibility(candles, timeframe, model_version=FAST_PROBE_VERSION,
                       now=None):
     """Return (decision, reason), rejecting late or future-dated signals.
 
@@ -87,6 +87,8 @@ def load_candles(ticker, interval, period):
 def main(argv=None):
     p = argparse.ArgumentParser()
     p.add_argument("--timeframe", choices=tuple(CONFIG), default="5m")
+    p.add_argument("--model", choices=(FAST_PROBE_VERSION, CLOSE_CONFIRM_VERSION),
+                   default=FAST_PROBE_VERSION)
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--include-wait", action="store_true",
                    help="Show WAIT preview only; WAIT is never stored")
@@ -102,7 +104,7 @@ def main(argv=None):
     }
     print(
         f"INTRADAY PAPER TRIAL: {args.timeframe}; {HORIZON} future bars; "
-        f"model={CLOSE_CONFIRM_VERSION}; dry_run={args.dry_run}; now={now}"
+        f"model={args.model}; dry_run={args.dry_run}; now={now}"
     )
     print("Delayed Yahoo candles are NOT live executable broker quotes.")
     for name, ticker in MARKETS.items():
@@ -110,7 +112,7 @@ def main(argv=None):
             candles = load_candles(ticker, interval, period)
             counts["markets_checked"] += 1
             decision, reason = trial_eligibility(
-                candles, args.timeframe, now=now,
+                candles, args.timeframe, model_version=args.model, now=now,
             )
             if decision is None:
                 if reason == "stale_provider_bar_skip":
@@ -133,7 +135,7 @@ def main(argv=None):
             signal_time = decision["signal_bar_at"]
             if prediction_exists(
                 ticker, args.timeframe, signal_time,
-                CLOSE_CONFIRM_VERSION, HORIZON,
+                args.model, HORIZON,
             ):
                 counts["duplicate"] += 1
                 continue
@@ -151,7 +153,7 @@ def main(argv=None):
                 "ticker": ticker,
                 "timeframe": args.timeframe,
                 "signal": signal,
-                "model_version": CLOSE_CONFIRM_VERSION,
+                "model_version": args.model,
                 "signal_bar_at": signal_time,
                 "reference_close": float(decision["reference_close"]),
                 "horizon_bars": HORIZON,
