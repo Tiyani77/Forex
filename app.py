@@ -10,6 +10,7 @@ from signal_models import (
     SUPPLY_DEMAND_VERSION, STRUCTURE_VERSION, LIQUIDITY_SWEEP_VERSION,
     CONFLUENCE_VERSION, confluence_diagnostics,
     PULLBACK_V2_VERSION, pullback_v2_diagnostics,
+    CLOSE_CONFIRM_VERSION, close_trend_diagnostics,
     MODEL_LABELS, momentum_signals,
     apply_research_model,
 )
@@ -38,7 +39,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-APP_VERSION = "V8.1 Signal Research"
+APP_VERSION = "V8.4 Signal Research"
 MODEL_VERSION = BASELINE_VERSION
 
 
@@ -759,7 +760,7 @@ tf = st.sidebar.selectbox(
 strategy_label = st.sidebar.selectbox(
     "Signal strategy",
     list(MODEL_LABELS.values()),
-    index=list(MODEL_LABELS).index(PULLBACK_V2_VERSION),
+    index=list(MODEL_LABELS).index(CLOSE_CONFIRM_VERSION),
     help="Book-informed research candidates are unvalidated.",
 )
 MODEL_VERSION = next(
@@ -863,6 +864,11 @@ if MODEL_VERSION == PULLBACK_V2_VERSION:
         raw.iloc[:terminal_bar_index + 1]
     )
     market_bias = str(bias_series.iloc[-1])
+if MODEL_VERSION == CLOSE_CONFIRM_VERSION:
+    _, _, bias_series = close_trend_diagnostics(
+        raw.iloc[:terminal_bar_index + 1]
+    )
+    market_bias = str(bias_series.iloc[-1])
 bias_direction = (
     "BUY bias" if market_bias == "BULLISH"
     else "SELL bias" if market_bias == "BEARISH"
@@ -948,6 +954,15 @@ st.caption(
 # ============================================================
 
 if page == "Trading Terminal":
+
+    if tf == "1d" and symbol.endswith("=X"):
+        st.warning(
+            "Yahoo Finance daily FX Open/Close candles failed our data-quality "
+            "audit. Candlestick-body and engulfing strategies may have very "
+            "few reliable signals. Select the V8.4 Close Trend + Pullback "
+            "research strategy for a Close-based candidate. The BUY/SELL "
+            "output remains unvalidated."
+        )
 
     left, center, right = st.columns(
         [1.05, 1.8, 1.1],
@@ -1064,7 +1079,16 @@ if page == "Trading Terminal":
         )
 
     with right:
-        if MODEL_VERSION == PULLBACK_V2_VERSION:
+        if MODEL_VERSION == CLOSE_CONFIRM_VERSION:
+            signal_description = (
+                "Price-close trend, recent corrective close changes, "
+                "mean-reversion proximity and completed-bar directional "
+                "reclaim. Does not use unreliable daily Open/Close bodies."
+                if signal != "WAIT" else
+                f"{bias_direction}: no qualified close-to-close entry "
+                "setup on the latest completed candle."
+            )
+        elif MODEL_VERSION == PULLBACK_V2_VERSION:
             signal_description = (
                 "Trend pullback/reclaim V8.1 research candidate: "
                 "EMA20/50 trend, prior three-bar corrective phase, "
