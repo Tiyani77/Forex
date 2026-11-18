@@ -2716,7 +2716,7 @@ elif page == "Prediction History":
     )
     st.info(
         "V8.5: historical direction accuracy is NOT executable trading "
-        "profit. All nine research models remain unvalidated. We cannot "
+        "profit. All ten research models remain unvalidated. We cannot "
         "approve live-money trading from these predictions."
     )
 
