@@ -4,6 +4,9 @@ name: Evaluate Forex Predictions
 on:
   schedule:
     - cron: "17 * * * *"
+    # Short intraday paper trials can resolve after 2 future candles.
+    # GitHub schedules are best-effort and not guaranteed to fire on time.
+    - cron: "11,26,41,56 * * * 1-5"
 
   workflow_dispatch:
 
