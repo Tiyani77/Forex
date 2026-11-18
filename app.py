@@ -1729,12 +1729,19 @@ elif page == "Historical Backtesting":
             value=0.0, step=0.5, key="bt_commission_bps",
         )
 
-    trades = backtest(df, horizon, spread_bps, slippage_bps, commission_bps)
+    bt_close_safe = (
+        MODEL_VERSION == CLOSE_CONFIRM_VERSION
+        and tf == "1d" and symbol.endswith("=X")
+    )
+    trades = backtest(
+        df, horizon, spread_bps, slippage_bps, commission_bps,
+        entry_mode="next_close" if bt_close_safe else "next_open",
+    )
     result = stats(trades)
     total_cost_bps = spread_bps + 2 * slippage_bps + commission_bps
     st.caption(f"Estimated combined round-trip cost: {total_cost_bps:.2f} bps per trade.")
 
-    st.markdown("#### V5.0 · Book-informed candidate benchmark")
+    st.markdown("#### Historical candidate benchmark (exploratory)")
     st.caption(
         "Two mechanical interpretations of your trading books: "
         "trend-continuation channel breakouts (Christopher Weaver) "
@@ -1742,7 +1749,10 @@ elif page == "Historical Backtesting":
         "(Jode Lebin, with Falcon-style structure context). "
         "These are experimental, not verified implementations of "
         "complete discretionary book strategies. All models use the "
-        "same retrospective bars, holding period and estimated costs."
+        "same retrospective bars and holding-period settings. "
+        "Daily Yahoo FX Open prices are unreliable in our data audit; "
+        "V8.4 uses a next-Close entry convention. Historical performance "
+        "under different entry conventions is NOT directly comparable."
     )
     v5_rows = []
     for version in MODEL_LABELS:
@@ -1751,8 +1761,14 @@ elif page == "Historical Backtesting":
             candidate["Buy"], candidate["Sell"] = apply_research_model(
                 candidate, version
             )
+        candidate_close_only = (
+            version == CLOSE_CONFIRM_VERSION and tf == "1d"
+            and symbol.endswith("=X")
+        )
         bt = backtest(
-            candidate, horizon, spread_bps, slippage_bps, commission_bps
+            candidate, horizon, spread_bps, slippage_bps,
+            commission_bps,
+            entry_mode="next_close" if candidate_close_only else "next_open",
         )
         values = (
             bt["Net return %"].astype(float)
