@@ -83,3 +83,15 @@ V8.2 deliberately **does not introduce another trading model or change any signa
 It checks both directions and both retrospective segments across the same 15 FX pairs. The diagnostic fails closed if the independently reconstructed filters disagree with the versioned model, and emits detailed market CSVs plus combined rows. Counts are bars passing filter conditions, **not trades**; overlapping bars are not combined into trades. The user's previously inspected development and later periods are NOT independent validation. Use the funnel only to locate rare conditions before any separate candidate is proposed.
 
 Run GitHub Actions → **V8.2 Signal Filter Diagnosis** → Run workflow with `5y`. Expand `Diagnose V8.1 BUY and SELL gates` and read `V8.2 FILTER FUNNEL`. The new workflow and tests are committed but not yet verified by Actions.
+
+## V8.2 follow-up: isolated final-gate diagnostic
+
+The original V8.2 results from November 18 showed that after directional confirmation, the combined **minimum candle body plus EMA20 extension limit** rejected nearly all candidate bars. The later-period funnel had 284 BUY and 195 SELL directional confirmations, but only 1 of each survived both final filters; development had zero. These are overlapping candle-level conditions, **not trades**.
+
+The updated `diagnose_pullback_v2.py` now reports:
+1. **Minimum candle body** (cumulative pass count: close/open movement >= 0.10 ATR14)
+2. **EMA20 extension limit** (cumulative count after body, distance <= 1.5 ATR14)
+3. **EMA20 extension pass (independent)** measured directly against directional confirmations, irrespective of candle body
+4. **Minimum body pass (independent)** measured directly against directional confirmations, irrespective of EMA20 distance
+
+These separate counts reveal whether one or both conditions are causing the near-zero signal frequency. They do NOT prove that removing either filter improves accuracy; a larger sample can still lose money. No V8.1 signal code or stored records are changed. Run **V8.2 Signal Filter Diagnosis** again and compare stage counts before developing another version.
