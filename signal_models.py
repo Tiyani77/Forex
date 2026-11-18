@@ -367,6 +367,72 @@ def pullback_v2_signals(candles):
     return buy, sell
 
 
+# V8.4: close-to-close confirmed continuation research candidate.
+# The V8.3 Yahoo FX audit found unreliable daily Open/Close bodies.
+# This model intentionally NEVER reads candle Open, High or Low.
+# It uses only observed Close history and fixed, disclosed thresholds.
+CLOSE_CONFIRM_VERSION = "close-trend-pullback-v1"
+
+
+def close_trend_diagnostics(candles):
+    """Causal daily close trend + pullback + close-change confirmation.
+
+    Book-inspired interpretation of trend/correction/impulse, not a full
+    implementation of FalconFX, Weaver or Lebin discretionary strategies.
+    Directional bias is separate from an actionable completed-bar flag.
+    """
+    close = candles["Close"].astype(float)
+    ema20 = close.ewm(span=20, adjust=False).mean()
+    ema50 = close.ewm(span=50, adjust=False).mean()
+    change = close.diff()
+    # Causal, robust price-move scale: preceding 20 absolute changes;
+    # current bar never enters the scale used to confirm itself.
+    scale = change.abs().shift(1).rolling(20, min_periods=20).median()
+    ready = (
+        pd.Series(range(len(candles)), index=candles.index).ge(65)
+        & scale.gt(0) & close.gt(0)
+    )
+    up = (ema20 > ema50) & (ema50 > ema50.shift(5))
+    down = (ema20 < ema50) & (ema50 < ema50.shift(5))
+    # Recent correction is countertrend in CLOSE-TO-CLOSE terms.
+    pullback_buy = (
+        (change.shift(1) < 0) | (change.shift(2) < 0)
+        | (change.shift(3) < 0)
+    )
+    pullback_sell = (
+        (change.shift(1) > 0) | (change.shift(2) > 0)
+        | (change.shift(3) > 0)
+    )
+    # Require the recent correction to approach the 20-bar mean, not
+    # simply an arbitrary opposite-colour Open/Close daily candle.
+    near_mean_buy = pd.concat([
+        (close.shift(k) - ema20.shift(k)).abs()
+        <= 1.25 * scale.shift(k) for k in (1, 2, 3)
+    ], axis=1).any(axis=1)
+    near_mean_sell = near_mean_buy
+    confirmation_buy = (
+        change >= .40 * scale
+    ) & (close > ema20) & (
+        (close - ema20) <= 2.5 * scale
+    )
+    confirmation_sell = (
+        change <= -.40 * scale
+    ) & (close < ema20) & (
+        (ema20 - close) <= 2.5 * scale
+    )
+    buy = ready & up & pullback_buy & near_mean_buy & confirmation_buy
+    sell = ready & down & pullback_sell & near_mean_sell & confirmation_sell
+    bias = pd.Series("NEUTRAL", index=candles.index, dtype="object")
+    bias.loc[up] = "BULLISH"
+    bias.loc[down] = "BEARISH"
+    return buy.fillna(False).astype(bool), sell.fillna(False).astype(bool), bias
+
+
+def close_trend_signals(candles):
+    buy, sell, _ = close_trend_diagnostics(candles)
+    return buy, sell
+
+
 MODEL_LABELS = {
     BASELINE_VERSION: "EMA + Engulfing (original)",
     MOMENTUM_VERSION: "EMA + RSI + MACD (experimental)",
@@ -376,6 +442,7 @@ MODEL_LABELS = {
     LIQUIDITY_SWEEP_VERSION: "Liquidity Sweep + Reclaim (V5.3 research)",
     CONFLUENCE_VERSION: "Trend + Pullback Confluence (book-informed V8 research)",
     PULLBACK_V2_VERSION: "Trend Pullback + Reclaim (V8.1 research)",
+    CLOSE_CONFIRM_VERSION: "Close Trend + Pullback (V8.4 FX data-safe research)",
 }
 
 
@@ -395,4 +462,6 @@ def apply_research_model(candles, model_version):
         return confluence_signals(candles)
     if model_version == PULLBACK_V2_VERSION:
         return pullback_v2_signals(candles)
+    if model_version == CLOSE_CONFIRM_VERSION:
+        return close_trend_signals(candles)
     raise ValueError(f"Unsupported research model: {model_version}")
