@@ -66,9 +66,9 @@ jobs:
           TF="${TRIAL_TF:-5m}"
           MODEL="${TRIAL_MODEL:-close-momentum-probe-v1}"
           if [ "$TRIGGER" = "workflow_dispatch" ] && [ "$TRIAL_DRY_RUN" = "true" ]; then
-            python intraday_paper_trial.py --timeframe "$TF" --model "$MODEL" --model "$MODEL" --dry-run
+            python intraday_paper_trial.py --timeframe "$TF" --model "$MODEL" --dry-run
           else
-            python intraday_paper_trial.py --timeframe "$TF"
+            python intraday_paper_trial.py --timeframe "$TF" --model "$MODEL"
           fi
 
       - name: Research-only limitation
