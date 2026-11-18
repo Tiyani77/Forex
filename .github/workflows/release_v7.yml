@@ -14,6 +14,8 @@ on:
       - "prediction_store.py"
       - "prediction_tracking.py"
       - "forward_evidence.py"
+      - "forward_pnl.py"
+      - "signal_readiness.py"
       - "research_multimarket.py"
       - "research_robustness.py"
       - "release_health.py"
@@ -41,7 +43,7 @@ jobs:
 
       - name: Compile all release files
         run: |
-          python -m compileall -q app.py forecast_engine.py signal_models.py collect_predictions.py evaluate_predictions.py prediction_store.py prediction_tracking.py prediction_monitor.py forward_evidence.py research_multimarket.py research_robustness.py research_release_audit.py release_health.py tests
+          python -m compileall -q app.py forecast_engine.py signal_models.py collect_predictions.py evaluate_predictions.py prediction_store.py prediction_tracking.py prediction_monitor.py forward_evidence.py forward_pnl.py signal_readiness.py research_close_signals.py research_multimarket.py research_robustness.py research_release_audit.py release_health.py tests
 
       - name: Complete regression suite
         run: python -m unittest discover -s tests -v
