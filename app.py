@@ -970,10 +970,10 @@ if len(raw) < 60:
 df = indicators(raw)
 df["Buy"], df["Sell"] = model_flags(df, MODEL_VERSION)
 # Yahoo daily FX Open/Close bodies are unreliable in the observed feed.
-# The V8.4 close-only strategy therefore uses next-completed-Close
-# hypothetical entry rather than the misleading next-Open proxy.
+# Both close-only models use a next-completed-Close hypothetical
+# entry for FX rather than the questioned Yahoo next-Open proxy.
 close_only_mode = (
-    MODEL_VERSION == CLOSE_CONFIRM_VERSION and tf == "1d"
+    MODEL_VERSION in (CLOSE_CONFIRM_VERSION, FAST_PROBE_VERSION)
     and symbol.endswith("=X")
 )
 trades = backtest(
