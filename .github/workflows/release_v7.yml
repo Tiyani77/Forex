@@ -1,0 +1,59 @@
+name: V7.1 Final Release Checks
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "app.py"
+      - "forecast_engine.py"
+      - "signal_models.py"
+      - "collect_predictions.py"
+      - "evaluate_predictions.py"
+      - "prediction_store.py"
+      - "prediction_tracking.py"
+      - "forward_evidence.py"
+      - "research_multimarket.py"
+      - "research_robustness.py"
+      - "release_health.py"
+      - "tests/**"
+      - ".github/workflows/release_v7.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  release-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install offline test dependencies
+        run: pip install pandas numpy yfinance requests streamlit plotly
+
+      - name: Compile all release files
+        run: |
+          python -m compileall -q app.py forecast_engine.py signal_models.py collect_predictions.py evaluate_predictions.py prediction_store.py prediction_tracking.py prediction_monitor.py forward_evidence.py research_multimarket.py research_robustness.py research_release_audit.py release_health.py tests
+
+      - name: Complete regression suite
+        run: python -m unittest discover -s tests -v
+
+      - name: Shared integration and release gate
+        run: |
+          python release_health.py
+          echo "All static checks passed; forward model validation remains pending."
+
+      - name: Release check summary
+        if: always()
+        run: |
+          echo "V7.1 code release audit executed."
+          echo "No trading model is automatically promoted."
+          echo "Live Streamlit UI, Supabase data and broker execution are not covered by this offline job."
