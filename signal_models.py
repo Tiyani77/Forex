@@ -295,6 +295,78 @@ def confluence_signals(candles):
     return buy, sell
 
 
+# V8.1: a separate, mechanically simpler pullback/reclaim candidate.
+# V8.0 is preserved as a frozen, testable historical research version.
+# Changes here are hypotheses addressing the V8.0 zero-signal failure,
+# not performance-optimised parameters or a faithful proprietary system.
+PULLBACK_V2_VERSION = "trend-pullback-reclaim-v2"
+
+
+def pullback_v2_diagnostics(candles):
+    """Trend + recently tested EMA20 + completed-bar reclaim (causal).
+
+    Countertrend candles and EMA20 tests must occur within the PREVIOUS
+    three bars; current bar must close back with the prevailing trend.
+    A maximum EMA20 distance rejects runaway extended moves without the
+    previous 40-bar range location filter that starved the V8.0 signals.
+    All comparisons use bars available at the signal candle close.
+    """
+    close = candles["Close"]
+    open_ = candles["Open"]
+    high, low = candles["High"], candles["Low"]
+    ema20 = close.ewm(span=20, adjust=False).mean()
+    ema50 = close.ewm(span=50, adjust=False).mean()
+    atr = _atr(candles)
+    eligible = (pd.Series(range(len(candles)), index=candles.index) >= 65) & atr.gt(0)
+
+    rising = (ema20 > ema50) & (ema50 > ema50.shift(5))
+    falling = (ema20 < ema50) & (ema50 < ema50.shift(5))
+    # Countertrend correction and level test can occur on different bars
+    # within the completed three-bar correction phase.
+    recent_bear = (
+        (close.shift(1) < open_.shift(1))
+        | (close.shift(2) < open_.shift(2))
+        | (close.shift(3) < open_.shift(3))
+    )
+    recent_bull = (
+        (close.shift(1) > open_.shift(1))
+        | (close.shift(2) > open_.shift(2))
+        | (close.shift(3) > open_.shift(3))
+    )
+    tested_support = (
+        (low.shift(1) <= ema20.shift(1) + .50 * atr.shift(1))
+        | (low.shift(2) <= ema20.shift(2) + .50 * atr.shift(2))
+        | (low.shift(3) <= ema20.shift(3) + .50 * atr.shift(3))
+    )
+    tested_resistance = (
+        (high.shift(1) >= ema20.shift(1) - .50 * atr.shift(1))
+        | (high.shift(2) >= ema20.shift(2) - .50 * atr.shift(2))
+        | (high.shift(3) >= ema20.shift(3) - .50 * atr.shift(3))
+    )
+    body_ok = (close - open_).abs() >= .10 * atr
+    distance_ok = (close - ema20).abs() <= 1.5 * atr
+
+    buy = (
+        eligible & rising & recent_bear & tested_support
+        & (close > open_) & (close > close.shift(1)) & (close > ema20)
+        & body_ok & distance_ok
+    )
+    sell = (
+        eligible & falling & recent_bull & tested_resistance
+        & (close < open_) & (close < close.shift(1)) & (close < ema20)
+        & body_ok & distance_ok
+    )
+    bias = pd.Series("NEUTRAL", index=candles.index, dtype="object")
+    bias.loc[rising] = "BULLISH"
+    bias.loc[falling] = "BEARISH"
+    return buy.fillna(False).astype(bool), sell.fillna(False).astype(bool), bias
+
+
+def pullback_v2_signals(candles):
+    buy, sell, _ = pullback_v2_diagnostics(candles)
+    return buy, sell
+
+
 MODEL_LABELS = {
     BASELINE_VERSION: "EMA + Engulfing (original)",
     MOMENTUM_VERSION: "EMA + RSI + MACD (experimental)",
@@ -303,6 +375,7 @@ MODEL_LABELS = {
     STRUCTURE_VERSION: "Market Structure Retest (Falcon-inspired research)",
     LIQUIDITY_SWEEP_VERSION: "Liquidity Sweep + Reclaim (V5.3 research)",
     CONFLUENCE_VERSION: "Trend + Pullback Confluence (book-informed V8 research)",
+    PULLBACK_V2_VERSION: "Trend Pullback + Reclaim (V8.1 research)",
 }
 
 
@@ -320,4 +393,6 @@ def apply_research_model(candles, model_version):
         return liquidity_sweep_reclaim_signals(candles)
     if model_version == CONFLUENCE_VERSION:
         return confluence_signals(candles)
+    if model_version == PULLBACK_V2_VERSION:
+        return pullback_v2_signals(candles)
     raise ValueError(f"Unsupported research model: {model_version}")
