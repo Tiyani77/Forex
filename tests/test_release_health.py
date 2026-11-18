@@ -11,7 +11,7 @@ class ReleaseHealthTests(unittest.TestCase):
     def test_release_contract_on_checked_out_repository(self):
         report = check_release(Path(__file__).resolve().parent.parent)
         self.assertEqual(report["status"], "STATIC_RELEASE_GATE_PASSED")
-        self.assertEqual(report["registered_research_models"], 9)
+        self.assertEqual(report["registered_research_models"], 10)
         self.assertEqual(report["validated_models"], 0)
 
     def test_missing_file_is_rejected(self):
