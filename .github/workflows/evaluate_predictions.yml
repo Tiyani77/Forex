@@ -31,7 +31,7 @@ jobs:
           pip install pandas numpy yfinance requests
 
       - name: Validate Python sources
-        run: python -m compileall -q app.py collect_predictions.py evaluate_predictions.py prediction_monitor.py prediction_store.py signal_models.py tests
+        run: python -m compileall -q app.py collect_predictions.py evaluate_predictions.py prediction_monitor.py prediction_tracking.py prediction_store.py signal_models.py tests
 
       - name: Regression-test forward evaluation logic
         run: python -m unittest discover -s tests -v
