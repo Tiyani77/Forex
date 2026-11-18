@@ -433,6 +433,39 @@ def close_trend_signals(candles):
     return buy, sell
 
 
+# V8.8: Frequent directional *paper forecast* probe.
+# This is intentionally a simple independent baseline, not a verified
+# trade entry. It predicts short-horizon direction from completed Close
+# candles and NEVER reads the questionable Yahoo FX Open/Close bodies.
+FAST_PROBE_VERSION = "close-momentum-probe-v1"
+
+
+def fast_probe_diagnostics(candles):
+    """Causal short-horizon directional forecast; BUY/SELL/WAIT.
+
+    BUY: EMA8 above EMA21, both EMA8 and price above previous values,
+    and close above EMA8. SELL is symmetric. If insufficient warmup,
+    mixed direction, invalid prices or flat market: WAIT. These are
+    *hypotheses* to test prospectively, not profitability claims.
+    """
+    close = candles["Close"].astype(float)
+    ema_fast = close.ewm(span=8, adjust=False).mean()
+    ema_slow = close.ewm(span=21, adjust=False).mean()
+    warm = pd.Series(range(len(candles)), index=candles.index).ge(30)
+    good = warm & close.gt(0) & close.notna()
+    up = good & (ema_fast > ema_slow) & (ema_fast > ema_fast.shift(1)) & (close > ema_fast)
+    down = good & (ema_fast < ema_slow) & (ema_fast < ema_fast.shift(1)) & (close < ema_fast)
+    outlook = pd.Series("NEUTRAL", index=candles.index, dtype="object")
+    outlook.loc[up] = "BULLISH"
+    outlook.loc[down] = "BEARISH"
+    return up.fillna(False).astype(bool), down.fillna(False).astype(bool), outlook
+
+
+def fast_probe_signals(candles):
+    buy, sell, _ = fast_probe_diagnostics(candles)
+    return buy, sell
+
+
 MODEL_LABELS = {
     BASELINE_VERSION: "EMA + Engulfing (original)",
     MOMENTUM_VERSION: "EMA + RSI + MACD (experimental)",
@@ -443,6 +476,7 @@ MODEL_LABELS = {
     CONFLUENCE_VERSION: "Trend + Pullback Confluence (book-informed V8 research)",
     PULLBACK_V2_VERSION: "Trend Pullback + Reclaim (V8.1 research)",
     CLOSE_CONFIRM_VERSION: "Close Trend + Pullback (V8.4 FX data-safe research)",
+    FAST_PROBE_VERSION: "Fast Direction Probe (paper test · unvalidated)",
 }
 
 
@@ -464,4 +498,6 @@ def apply_research_model(candles, model_version):
         return pullback_v2_signals(candles)
     if model_version == CLOSE_CONFIRM_VERSION:
         return close_trend_signals(candles)
+    if model_version == FAST_PROBE_VERSION:
+        return fast_probe_signals(candles)
     raise ValueError(f"Unsupported research model: {model_version}")
