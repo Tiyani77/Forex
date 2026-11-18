@@ -217,6 +217,84 @@ def liquidity_sweep_reclaim_signals(candles):
     return buy.fillna(False).astype(bool), sell.fillna(False).astype(bool)
 
 
+# V8.0 research: book-informed confluence of trend, correction, and
+# resumed impulse. Exact numerical thresholds are NEW mechanical assumptions,
+# NOT rules supplied verbatim by Weaver, Lebin, or FalconFX.
+CONFLUENCE_VERSION = "trend-pullback-confluence-v1"
+
+
+def confluence_diagnostics(candles):
+    """Causal bias and independently actionable pullback continuation flags.
+
+    1. Trend context: EMA20/50 alignment plus slowly moving EMA50 slope.
+    2. Previous completed bars show a counter-trend correction toward EMA20.
+    3. Current completed bar reclaims EMA20 with a directional candle
+       and closes beyond the prior close.
+    4. Exclude extended prices near the unfavorable extremes of the previous
+       40-bar range (a coarse location proxy, NOT a real supply/demand zone).
+    5. Require normal candle body, sufficient volatility, and trend separation.
+
+    WAIT is intentionally allowed; directional bias is always reported
+    separately when there is a strong trend.
+    """
+    close = candles["Close"]
+    open_ = candles["Open"]
+    high, low = candles["High"], candles["Low"]
+    ema20 = close.ewm(span=20, adjust=False).mean()
+    ema50 = close.ewm(span=50, adjust=False).mean()
+    atr = _atr(candles)
+    prev_high = high.shift(1).rolling(40, min_periods=40).max()
+    prev_low = low.shift(1).rolling(40, min_periods=40).min()
+    span = (prev_high - prev_low).where(lambda v: v > 0)
+    location = (close - prev_low) / span
+
+    trend_up = (
+        (ema20 > ema50) & (ema50 > ema50.shift(5))
+        & ((ema20 - ema50) > 0.12 * atr)
+    )
+    trend_down = (
+        (ema20 < ema50) & (ema50 < ema50.shift(5))
+        & ((ema50 - ema20) > 0.12 * atr)
+    )
+    # The correction happened on one of the PREVIOUS two bars.
+    pullback_up = (
+        ((close.shift(1) < open_.shift(1))
+         | (close.shift(2) < open_.shift(2)))
+        & (low.shift(1) <= ema20.shift(1) + .35 * atr.shift(1))
+        & (close.shift(1) > ema50.shift(1) - .45 * atr.shift(1))
+    )
+    pullback_down = (
+        ((close.shift(1) > open_.shift(1))
+         | (close.shift(2) > open_.shift(2)))
+        & (high.shift(1) >= ema20.shift(1) - .35 * atr.shift(1))
+        & (close.shift(1) < ema50.shift(1) + .45 * atr.shift(1))
+    )
+    strong_body = (close - open_).abs() >= .18 * atr
+    normal_range = (high - low >= .45 * atr) & (high - low <= 3 * atr)
+    enough = pd.Series(range(len(candles)), index=candles.index) >= 65
+    valid = enough & atr.gt(0) & span.notna() & strong_body & normal_range
+
+    buy = (
+        valid & trend_up & pullback_up & (close > open_)
+        & (close > close.shift(1)) & (close > ema20)
+        & location.lt(.85)
+    )
+    sell = (
+        valid & trend_down & pullback_down & (close < open_)
+        & (close < close.shift(1)) & (close < ema20)
+        & location.gt(.15)
+    )
+    bias = pd.Series("NEUTRAL", index=candles.index, dtype="object")
+    bias.loc[trend_up] = "BULLISH"
+    bias.loc[trend_down] = "BEARISH"
+    return buy.fillna(False).astype(bool), sell.fillna(False).astype(bool), bias
+
+
+def confluence_signals(candles):
+    buy, sell, _ = confluence_diagnostics(candles)
+    return buy, sell
+
+
 MODEL_LABELS = {
     BASELINE_VERSION: "EMA + Engulfing (original)",
     MOMENTUM_VERSION: "EMA + RSI + MACD (experimental)",
@@ -224,6 +302,7 @@ MODEL_LABELS = {
     SUPPLY_DEMAND_VERSION: "Supply/Demand Rejection (book-informed research)",
     STRUCTURE_VERSION: "Market Structure Retest (Falcon-inspired research)",
     LIQUIDITY_SWEEP_VERSION: "Liquidity Sweep + Reclaim (V5.3 research)",
+    CONFLUENCE_VERSION: "Trend + Pullback Confluence (book-informed V8 research)",
 }
 
 
@@ -239,4 +318,6 @@ def apply_research_model(candles, model_version):
         return structure_retest_signals(candles)
     if model_version == LIQUIDITY_SWEEP_VERSION:
         return liquidity_sweep_reclaim_signals(candles)
+    if model_version == CONFLUENCE_VERSION:
+        return confluence_signals(candles)
     raise ValueError(f"Unsupported research model: {model_version}")
