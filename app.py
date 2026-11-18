@@ -8,6 +8,7 @@ import yfinance as yf
 from signal_models import (
     BASELINE_VERSION, MOMENTUM_VERSION, CHANNEL_VERSION,
     SUPPLY_DEMAND_VERSION, STRUCTURE_VERSION, LIQUIDITY_SWEEP_VERSION,
+    CONFLUENCE_VERSION, confluence_diagnostics,
     MODEL_LABELS, momentum_signals,
     apply_research_model,
 )
@@ -36,7 +37,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-APP_VERSION = "V7.1 Release Candidate"
+APP_VERSION = "V8.0 Signal Research"
 MODEL_VERSION = BASELINE_VERSION
 
 
@@ -757,6 +758,7 @@ tf = st.sidebar.selectbox(
 strategy_label = st.sidebar.selectbox(
     "Signal strategy",
     list(MODEL_LABELS.values()),
+    index=list(MODEL_LABELS).index(CONFLUENCE_VERSION),
     help="Book-informed research candidates are unvalidated.",
 )
 MODEL_VERSION = next(
@@ -775,8 +777,8 @@ st.sidebar.markdown(
     unsafe_allow_html=True,
 )
 st.sidebar.caption(
-    "V7.1 research release · shared completed-candle signals · "
-    "versioned forward tracking · no validated trading edge."
+    "V8 signal research · market bias is NOT an entry signal · "
+    "no validated trading edge."
 )
 
 horizon = st.sidebar.slider(
@@ -847,6 +849,20 @@ label = (
 )
 
 signal = terminal_decision["signal"]
+# Directional trend bias is intentionally separate from actionable signals:
+# a BUY/SELL bias is NEVER silently saved as a forecast when signal=WAIT.
+market_bias = "BULLISH" if last.EMA20 > last.EMA50 else "BEARISH"
+if MODEL_VERSION == CONFLUENCE_VERSION:
+    _, _, bias_series = confluence_diagnostics(
+        raw.iloc[:terminal_bar_index + 1]
+    )
+    market_bias = str(bias_series.iloc[-1])
+bias_direction = (
+    "BUY bias" if market_bias == "BULLISH"
+    else "SELL bias" if market_bias == "BEARISH"
+    else "Neutral"
+)
+
 
 trend = (
     "Bullish"
@@ -1024,6 +1040,14 @@ if page == "Trading Terminal":
         )
 
         st.metric(
+            "Directional market bias (not a trade signal)",
+            bias_direction,
+            help="Trend-only directional assessment, not a verified forecast "
+                 "or an instruction to buy or sell. Only an actionable "
+                 "BUY/SELL signal is eligible for forward tracking.",
+        )
+
+        st.metric(
             "Last candle close",
             fmt_price(float(last.Close), market),
         )
@@ -1034,7 +1058,17 @@ if page == "Trading Terminal":
         )
 
     with right:
-        if MODEL_VERSION in (CHANNEL_VERSION, SUPPLY_DEMAND_VERSION, STRUCTURE_VERSION, LIQUIDITY_SWEEP_VERSION):
+        if MODEL_VERSION == CONFLUENCE_VERSION:
+            signal_description = (
+                "Book-informed continuation proxy: aligned trend, "
+                "prior corrective pullback, renewed directional candle "
+                "and reasonable location inside the prior range. "
+                "Directional bias alone is not an entry."
+                if signal != "WAIT" else
+                f"{bias_direction}: trend context only. No fully "
+                "confirmed pullback-continuation entry on this candle."
+            )
+        elif MODEL_VERSION in (CHANNEL_VERSION, SUPPLY_DEMAND_VERSION, STRUCTURE_VERSION, LIQUIDITY_SWEEP_VERSION):
             signal_description = (
                 "Book-informed price-structure research candidate. "
                 "Not a verified forecasting advantage."
