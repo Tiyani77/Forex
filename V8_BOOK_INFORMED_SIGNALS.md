@@ -45,3 +45,23 @@ All signal model versions are unchanged except the introduction of this new seve
 - The V7 static release gate has been updated to expect the seventh registered research model. Existing historical models and data remain version-identifiable.
 
 **Release principle:** prefer an honest WAIT and a descriptive directional bias over a fabricated high-confidence BUY or SELL.
+
+## V8.0 zero-trade diagnostic and V8.1 candidate
+
+The November 18, 2026 user-supplied multi-market test of `trend-pullback-confluence-v1` reported **0 trades across 15 FX pairs** in BOTH development and later periods (5y daily candles, five-bar horizon, 4 bps assumed round-trip costs). It therefore has **no estimable historical win rate** and must not be marketed as accurate.
+
+The absence of signals does not identify which specific gate is responsible. V8.1 is a **separate research hypothesis**, not a tuned winning strategy:
+
+- New model version: `trend-pullback-reclaim-v2`.
+- Preserve v1 flags and historical model identity exactly.
+- Align EMA20/EMA50, require EMA50's five-bar direction to match the candidate trade.
+- Look for an opposite-colour correction candle and a test of the EMA20 vicinity in the **previous three completed bars**, rather than insisting on the previous two and a single-bar EMA20 test.
+- Confirm the current bar direction, close above (BUY) or below (SELL) EMA20, and a close that advances beyond the previous close.
+- Use a normal-sized body (>= 0.10 ATR14) and limit current distance from EMA20 to 1.5 ATR14 to avoid buying/selling a heavily extended move.
+- Do not apply the v1 hard 40-bar relative-range-location threshold. This simplifies the entry definition but does NOT prove that filter caused the zero signals.
+- Keep trend-only **BUY bias / SELL bias / Neutral** separate from actionable **BUY / SELL / WAIT**.
+- Both versions remain independent research candidates in Streamlit, scheduled daily collection, and the retrospective 15-market benchmark.
+
+V8.1 parameters are disclosed, mechanistic assumptions rather than rules quoted verbatim from the books. Tests include artificial bullish and bearish entry constructions, empty candles, finite warmup, causal prefixes, version registration and absence of BUY+SELL overlap. All actual V8.1 forecast accuracy and profitability remain **UNVALIDATED**.
+
+**Next checks:** (1) run **V8 Signal Engine Tests** and check every new V8.1 test; (2) run **Research V5 Strategy Benchmarks** using the original 5y/5-bar/4bps assumptions; (3) inspect the v2 trade count across all markets before considering its returns; (4) collect fresh timestamped versioned forecasts and wait until outcomes become available. These retrospective diagnostics are repeatedly inspected development data and cannot be treated as independent prospective validation.
