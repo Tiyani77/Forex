@@ -10,9 +10,8 @@ import numpy as np
 import pandas as pd
 import yfinance as yf
 
-from signal_models import (
-    BASELINE_VERSION, MODEL_LABELS, apply_research_model,
-)
+from signal_models import BASELINE_VERSION, MODEL_LABELS
+from forecast_engine import model_flags
 
 # FX-only to make comparisons economically more coherent than mixing asset classes.
 FX_MARKETS = {
@@ -44,24 +43,6 @@ def cleaned_history(frame, now=None):
     return df.loc[df.index + pd.Timedelta(days=1) <= now].copy()
 
 
-def baseline_flags(df):
-    previous = df.shift(1)
-    ema20 = df.Close.ewm(span=20, adjust=False).mean()
-    ema50 = df.Close.ewm(span=50, adjust=False).mean()
-    bull = (
-        (previous.Close < previous.Open)
-        & (df.Close > df.Open)
-        & (df.Open <= previous.Close)
-        & (df.Close >= previous.Open)
-    )
-    bear = (
-        (previous.Close > previous.Open)
-        & (df.Close < df.Open)
-        & (df.Open >= previous.Close)
-        & (df.Close <= previous.Open)
-    )
-    return (ema20 > ema50) & bull, (ema20 < ema50) & bear
-
 
 def trade_rows(df, version, horizon=5, cost_bps=4.0, min_history=60):
     """Trade signal at close i, entry i+1 open, exit i+horizon close.
@@ -77,10 +58,7 @@ def trade_rows(df, version, horizon=5, cost_bps=4.0, min_history=60):
     if len(df) < min_history + horizon + 1:
         return pd.DataFrame()
 
-    if version == BASELINE_VERSION:
-        buy, sell = baseline_flags(df)
-    else:
-        buy, sell = apply_research_model(df, version)
+    buy, sell = model_flags(df, version)
     rows = []
     next_allowed = min_history
     for i in range(min_history, len(df) - horizon):
