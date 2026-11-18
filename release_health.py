@@ -15,6 +15,7 @@ REQUIRED_FILES = (
     "prediction_store.py", "prediction_tracking.py",
     "prediction_monitor.py", "forward_evidence.py",
     "signal_readiness.py", "research_close_signals.py",
+    "forward_pnl.py",
     "research_multimarket.py", "research_robustness.py",
     "research_release_audit.py",
 )
@@ -46,7 +47,7 @@ def check_release(root="."):
     collector_file = root / "collect_predictions.py"
     if app_file.exists():
         app = app_file.read_text(encoding="utf-8")
-        if 'APP_VERSION = "V8.4 Signal Research"' not in app:
+        if 'APP_VERSION = "V8.6 Forward Performance Research"' not in app:
             problems.append("App release label has not been finalized")
         if 'latest_signal(' not in app or 'model_flags(' not in app:
             problems.append("Terminal is not wired to the shared signal engine")
@@ -54,6 +55,10 @@ def check_release(root="."):
             problems.append("Manual save lacks exact duplicate guard")
         if "list_predictions_paginated(" not in app:
             problems.append("History lacks paginated reads")
+        if "evaluated_reference_returns(" not in app:
+            problems.append("V8.6 forward cost-adjusted dashboard not wired")
+        if "reference_summary(" not in app:
+            problems.append("V8.6 per-model forward report not wired")
         if "NOT VALIDATED" not in app:
             problems.append("Unverified predictor caution missing from UI")
     if collector_file.exists():
@@ -65,7 +70,7 @@ def check_release(root="."):
     if problems:
         raise RuntimeError("\n".join(problems))
     return {
-        "release": "V8.4",
+        "release": "V8.6",
         "registered_research_models": len(MODEL_LABELS),
         "fx_benchmark_markets": len(FX_MARKETS),
         "source_modules_checked": len(REQUIRED_FILES),
