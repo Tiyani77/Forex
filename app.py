@@ -32,7 +32,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-APP_VERSION = "V6.1 Forward Evidence"
+APP_VERSION = "V6.2 Prediction Monitoring"
 MODEL_VERSION = BASELINE_VERSION
 
 
