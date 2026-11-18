@@ -43,7 +43,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-APP_VERSION = "V8.6 Forward Performance Research"
+APP_VERSION = "V8.8 Fast Paper Outlook"
 MODEL_VERSION = BASELINE_VERSION
 
 
