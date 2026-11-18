@@ -17,8 +17,10 @@ from prediction_store import (
     config,
     save_prediction,
     list_predictions,
+    list_predictions_paginated,
     complete_prediction,
 )
+from prediction_tracking import tracking_overview
 
 
 # ============================================================
@@ -32,7 +34,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-APP_VERSION = "V6.2 Prediction Monitoring"
+APP_VERSION = "V6.3 Forecast Reliability"
 MODEL_VERSION = BASELINE_VERSION
 
 
@@ -2627,8 +2629,16 @@ elif page == "Prediction History":
         # ----------------------------------------------------
 
         try:
-            records = list_predictions()
+            records, history_truncated = list_predictions_paginated(
+                page_size=500, max_records=5000
+            )
             history = pd.DataFrame(records)
+            if history_truncated:
+                st.warning(
+                    "History is capped at the latest 5,000 saved records. "
+                    "Statistics shown below cover only the displayed window, "
+                    "not the entire database."
+                )
 
             if history.empty:
                 st.info(
@@ -2651,6 +2661,68 @@ elif page == "Prediction History":
                 history["model_version"] = (
                     history["model_version"].fillna("unknown")
                 )
+
+                # V6.3: operational health is separate from scoring.
+                # Elapsed calendar time is NOT a count of future candles.
+                tracking, tracking_counts = tracking_overview(history)
+                st.markdown("### V6.3 · Prediction tracking reliability")
+                h1, h2, h3, h4 = st.columns(4)
+                h1.metric("Awaiting evaluation", tracking_counts["pending"])
+                h2.metric("Evaluated BUY/SELL", tracking_counts["evaluated"])
+                h3.metric("Age review flags", tracking_counts["aged_pending"])
+                h4.metric(
+                    "Data quality flags",
+                    tracking_counts["missing_fields"]
+                    + tracking_counts["unusual_status"],
+                )
+                st.caption(
+                    "Age reviews are advisory: daily forecasts are checked "
+                    "after 14 calendar days, shorter timeframes after 7. "
+                    "The GitHub evaluator—not calendar time—determines "
+                    "how many completed future bars are available."
+                )
+                problem_rows = tracking.loc[
+                    tracking["Operational state"].str.startswith("Review")
+                ].copy()
+                if not problem_rows.empty:
+                    st.warning(
+                        f"{len(problem_rows)} saved record(s) need manual "
+                        "review for unusual age or incomplete data. They "
+                        "are not automatically treated as incorrect."
+                    )
+                    st.dataframe(
+                        problem_rows[[
+                            "instrument", "model_version", "timeframe",
+                            "signal", "status", "Age days",
+                            "Data quality", "Operational state"
+                        ]].head(100),
+                        hide_index=True, use_container_width=True
+                    )
+                st.markdown("#### Saved forecast lifecycle")
+                lifecycle = tracking.loc[
+                    tracking["signal"].isin(["BUY", "SELL"])
+                ].copy()
+                if not lifecycle.empty:
+                    lifecycle["recorded_at"] = pd.to_datetime(
+                        lifecycle["recorded_at"], utc=True, errors="coerce"
+                    )
+                    lifecycle = lifecycle.sort_values(
+                        "recorded_at", ascending=False, na_position="last"
+                    )
+                    st.dataframe(
+                        lifecycle[[
+                            "recorded_at", "instrument", "model_version",
+                            "signal", "horizon_bars", "status",
+                            "Age days", "Operational state"
+                        ]].head(100),
+                        hide_index=True, use_container_width=True,
+                        height=270
+                    )
+                else:
+                    st.info(
+                        "No saved BUY/SELL forecasts yet. WAIT does not "
+                        "count toward directional accuracy."
+                    )
 
                 # --------------------------------------------
                 # FORWARD PERFORMANCE METRICS
