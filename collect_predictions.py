@@ -9,7 +9,8 @@ from datetime import datetime, timezone, timedelta
 
 import pandas as pd
 import yfinance as yf
-from prediction_store import config, list_predictions, save_prediction
+from prediction_store import config, prediction_exists, save_prediction
+from forecast_engine import latest_signal
 from signal_models import (
     BASELINE_VERSION, MOMENTUM_VERSION, CHANNEL_VERSION,
     SUPPLY_DEMAND_VERSION, STRUCTURE_VERSION, LIQUIDITY_SWEEP_VERSION,
@@ -47,43 +48,17 @@ def download(ticker, interval, period):
 
 
 def prediction(name, ticker, timeframe, df, model_version=BASELINE_VERSION):
-    if timeframe != '1d':
-        raise ValueError('Collector currently supports completed daily bars only')
-    if df.empty:
+    if timeframe != "1d":
+        raise ValueError("Collector supports completed daily candles only")
+    signal = latest_signal(df, model_version, timeframe="1d")
+    if signal is None:
         return None
-
-    # Yahoo may include the still-forming daily bar or end with the most
-    # recent completed one. Choose by timestamp rather than always -2.
-    now = pd.Timestamp.now(tz='UTC')
-    index_utc = pd.to_datetime(df.index, utc=True)
-    completed = (index_utc + pd.Timedelta(days=1) <= now)
-    df = df.loc[completed].copy()
-    if len(df) < 60:
-        return None
-    df['EMA20'] = df.Close.ewm(span=20, adjust=False).mean()
-    df['EMA50'] = df.Close.ewm(span=50, adjust=False).mean()
-    previous = df.shift(1)
-    bull = ((previous.Close < previous.Open) & (df.Close > df.Open)
-            & (df.Open <= previous.Close) & (df.Close >= previous.Open))
-    bear = ((previous.Close > previous.Open) & (df.Close < df.Open)
-            & (df.Open >= previous.Close) & (df.Close <= previous.Open))
-    # Latest actually completed bar; never the forming daily candle.
-    anchor = df.iloc[-1]
-    if model_version == BASELINE_VERSION:
-        buy = anchor.EMA20 > anchor.EMA50 and bool(bull.iloc[-1])
-        sell = anchor.EMA20 < anchor.EMA50 and bool(bear.iloc[-1])
-    else:
-        buys, sells = apply_research_model(df, model_version)
-        buy, sell = bool(buys.iloc[-1]), bool(sells.iloc[-1])
-    signal = 'BUY' if buy else ('SELL' if sell else 'WAIT')
-    at = pd.Timestamp(df.index[-1])
-    at = at.tz_localize('UTC') if at.tzinfo is None else at.tz_convert('UTC')
     return {
-        'instrument': name, 'ticker': ticker, 'timeframe': timeframe,
-        'signal': signal, 'model_version': model_version,
-        'signal_bar_at': at.isoformat(),
-        'reference_close': float(anchor.Close),
-        'horizon_bars': HORIZON_BARS,
+        "instrument": name, "ticker": ticker, "timeframe": timeframe,
+        "signal": signal["signal"], "model_version": model_version,
+        "signal_bar_at": signal["signal_bar_at"],
+        "reference_close": signal["reference_close"],
+        "horizon_bars": HORIZON_BARS,
     }
 
 
@@ -96,12 +71,7 @@ def main():
     args = parser.parse_args()
     if not args.dry_run and not config():
         raise RuntimeError('Supabase environment variables are missing')
-    existing = set()
-    if not args.dry_run:
-        for rec in list_predictions():
-            existing.add((rec.get('ticker'), rec.get('timeframe'),
-                          str(pd.Timestamp(rec['signal_bar_at']).tz_convert('UTC')),
-                          rec.get('model_version'), int(rec.get('horizon_bars', 0))))
+    existing = set()  # in-run duplicate guard; persistent check queries Supabase
     counts = {'saved':0, 'duplicate':0, 'wait_skipped':0, 'errors':0, 'candidates':0}
     model_counts = {}
     latest_bar_by_market = {}
@@ -142,6 +112,13 @@ def main():
                         counts['duplicate'] += 1
                         continue
                     if not args.dry_run:
+                        if prediction_exists(
+                            ticker, timeframe, payload['signal_bar_at'],
+                            model_version, HORIZON_BARS,
+                        ):
+                            counts['duplicate'] += 1
+                            existing.add(key)
+                            continue
                         save_prediction(payload)
                         existing.add(key)
                         counts['saved'] += 1
