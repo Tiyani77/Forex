@@ -5,7 +5,7 @@ import pandas as pd
 from signal_models import (
     CHANNEL_VERSION, SUPPLY_DEMAND_VERSION,
     STRUCTURE_VERSION, LIQUIDITY_SWEEP_VERSION, CONFLUENCE_VERSION,
-    PULLBACK_V2_VERSION, CLOSE_CONFIRM_VERSION, MODEL_LABELS,
+    PULLBACK_V2_VERSION, CLOSE_CONFIRM_VERSION, FAST_PROBE_VERSION, MODEL_LABELS,
     apply_research_model,
 )
 
@@ -30,6 +30,7 @@ class BookStrategyTests(unittest.TestCase):
         self.assertIn(CONFLUENCE_VERSION, MODEL_LABELS)
         self.assertIn(PULLBACK_V2_VERSION, MODEL_LABELS)
         self.assertIn(CLOSE_CONFIRM_VERSION, MODEL_LABELS)
+        self.assertIn(FAST_PROBE_VERSION, MODEL_LABELS)
 
     def test_boolean_aligned_no_conflicts(self):
         for model in (CHANNEL_VERSION, SUPPLY_DEMAND_VERSION, STRUCTURE_VERSION,
@@ -47,7 +48,7 @@ class BookStrategyTests(unittest.TestCase):
         for model in (CHANNEL_VERSION, SUPPLY_DEMAND_VERSION,
                       STRUCTURE_VERSION, LIQUIDITY_SWEEP_VERSION,
                       CONFLUENCE_VERSION, PULLBACK_V2_VERSION,
-                      CLOSE_CONFIRM_VERSION):
+                      CLOSE_CONFIRM_VERSION, FAST_PROBE_VERSION):
             full_buy, full_sell = apply_research_model(self.candles, model)
             for cutoff in (65, 100, 140):
                 prefix_buy, prefix_sell = apply_research_model(
