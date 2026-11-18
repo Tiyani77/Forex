@@ -227,6 +227,123 @@ div[data-testid="stNumberInput"] [data-testid="stWidgetLabel"] * {
     color: #c4d4ee !important;
     opacity: 1 !important;
 }
+
+/* V8.7 visual refresh: terminal-like layout; presentation only */
+:root { --fi-blue:#5cb8ff; --fi-violet:#9a65f5; --fi-green:#4ee7a5; --fi-red:#ff7793; }
+.stApp {
+    background: radial-gradient(ellipse at 65% 0%, #152039 0%, #090e19 53%, #070c14 100%);
+}
+[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #0e1627 0%, #0a1120 100%);
+    border-right: 1px solid #253b59;
+}
+[data-testid="stSidebar"] > div:first-child { padding-top: 1.1rem; }
+[data-testid="stSidebar"] [data-testid="stRadio"] label {font-weight: 600;}
+[data-testid="stSidebar"] [data-testid="stRadio"] div[role="radiogroup"] {
+    gap: .28rem;
+}
+[data-testid="stSidebar"] [data-testid="stRadio"] div[role="radiogroup"] label {
+    border-radius: 10px;
+    padding: .35rem .5rem;
+    transition: background .2s ease;
+}
+[data-testid="stSidebar"] [data-testid="stRadio"] div[role="radiogroup"] label:hover {
+    background: #1a2940;
+}
+[data-testid="stSidebar"] [data-baseweb="select"] > div,
+[data-testid="stSidebar"] [data-testid="stTextInput"] input {
+    border-radius: 11px;
+    border: 1px solid #456182;
+    min-height: 43px;
+}
+.block-container { max-width: 1760px; padding-top: 1.05rem; padding-bottom: 3rem; }
+h1,h2,h3 { font-weight: 780; }
+.terminal-card {
+    background: linear-gradient(145deg, rgba(23,33,53,.98), rgba(12,19,33,.98));
+    border: 1px solid #2c405c;
+    border-radius: 19px;
+    padding: 20px;
+    box-shadow: 0 13px 32px rgba(0,0,0,.17), inset 0 1px rgba(255,255,255,.035);
+    transition: border-color .2s ease, transform .2s ease;
+}
+.terminal-card:hover { border-color: #42658b; }
+.card-label { color:#8eaace; font-size:.72rem; letter-spacing:.115em; font-weight:760; }
+.card-title { font-size:1.37rem; margin:9px 0; }
+.rule { color:#c4d2e7; line-height:1.8; }
+[data-testid="stMetric"] {
+    background: linear-gradient(140deg,#18253b,#101a2b);
+    border:1px solid #304565;
+    border-radius:16px;
+    padding:16px;
+    box-shadow:0 8px 22px rgba(0,0,0,.12);
+}
+[data-testid="stMetricValue"] {font-size: clamp(1.5rem,2.25vw,2.15rem);}
+[data-testid="stAlert"] {border-radius:13px;}
+[data-testid="stButton"] button[kind="primary"] {
+    border:0;
+    border-radius:12px;
+    background: linear-gradient(100deg,#56b9ff,#9a5bfc);
+    box-shadow:0 8px 22px #5845b42b;
+}
+[data-testid="stButton"] button[kind="primary"] * { color:#fff !important; }
+.signal-hero {
+    background: radial-gradient(circle at 50% 37%, rgba(66,100,136,.17),transparent 52%),
+                linear-gradient(155deg,#111d2f,#0a111e);
+    border:1px solid #304664;
+    border-radius:22px;
+    padding: 27px 17px 22px;
+    min-height: 340px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    box-shadow: 0 16px 36px #0003,inset 0 1px rgba(255,255,255,.05);
+}
+.signal-hero-name { color:#f7faff;font-size:clamp(1.45rem,2.5vw,2rem);font-weight:800; }
+.signal-hero-kicker { color:#97abc8;letter-spacing:.15em;font-size:.68rem;font-weight:740;margin-bottom:10px; }
+.signal-orb {
+    width:170px;
+    height:170px;
+    border-radius:50%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:clamp(2.1rem,4vw,3rem);
+    font-weight:850;
+    letter-spacing:.02em;
+    margin:24px auto 17px;
+    position:relative;
+    border:1px solid currentColor;
+    box-shadow:inset 0 0 37px currentColor,0 0 42px rgba(84,139,197,.1);
+}
+.signal-orb::before {content:"";position:absolute;inset:-11px;border-radius:50%;border:1px solid currentColor;opacity:.17;}
+.signal-orb.signal-buy {background:radial-gradient(circle,#174b37,#102b26 70%);box-shadow:inset 0 0 46px #27835e66,0 0 40px #35d79d33;}
+.signal-orb.signal-sell {background:radial-gradient(circle,#4b2435,#281622 70%);box-shadow:inset 0 0 46px #ae425c66,0 0 40px #ff77932e;}
+.signal-orb.signal-wait {background:radial-gradient(circle,#46391d,#221e1a 70%);box-shadow:inset 0 0 46px #bb8c3966,0 0 40px #eabf6b24;}
+.signal-hero-desc {color:#afc2de;font-size:.86rem;line-height:1.6;max-width:400px;}
+.signal-hero-meta {color:#7f99b9;font-size:.76rem;margin-top:15px;}
+.fi-eyebrow {color:#92b2dd;font-size:.73rem;letter-spacing:.13em;font-weight:780;}
+.fi-header {
+    display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;
+    gap:14px;padding:5px 1px 16px;
+}
+.fi-heading {font-size:clamp(1.6rem,2.4vw,2.25rem);font-weight:830;color:#f4f8ff;letter-spacing:-.035em;}
+.fi-gradient {background:linear-gradient(90deg,#71cdff,#ad81ff);-webkit-background-clip:text;background-clip:text;color:transparent;}
+.fi-subheading {font-size:.83rem;color:#91a8c6;margin-top:4px;}
+.fi-chips {display:flex;flex-wrap:wrap;gap:8px;}
+.fi-chip {background:#14243a;border:1px solid #355271;color:#c5daf5;border-radius:30px;padding:8px 12px;font-size:.75rem;font-weight:650;}
+.fi-chip-live {color:#e6c47d;border-color:#816937;background:#2a251c;}
+.fi-mini-banner {background:#182538;border:1px solid #4b5e72;border-left:3px solid #c6aa68;padding:12px 15px;border-radius:10px;color:#cfdaeb;font-size:.8rem;line-height:1.6;margin-bottom:16px;}
+.fi-section-title {color:#dfe9fc;font-size:1.03rem;font-weight:750;margin:22px 0 12px;letter-spacing:-.015em;}
+.fi-tf-pills {display:flex;gap:8px;flex-wrap:wrap;}
+.fi-tf-pill {color:#a8c1df;background:#17263b;border:1px solid #344761;border-radius:20px;padding:5px 12px;font-size:.75rem;}
+.fi-tf-pill.active {color:#101b2c;background:linear-gradient(90deg,#6cc7ff,#9b8bff);font-weight:800;border-color:transparent;}
+@media (max-width: 950px) {
+    .signal-hero {min-height:290px;}
+    .signal-orb {width:135px;height:135px;margin:16px auto;}
+}
+
 </style>
 """,
     unsafe_allow_html=True,
@@ -964,10 +1081,15 @@ atr_pct = (
 # MAIN HEADER
 # ============================================================
 
-st.markdown("## ✦ Forex Intelligence")
-st.caption(
-    "Trading terminal · Market research · "
-    "Historical testing | Not financial advice"
+st.markdown(
+    '<div class="fi-header"><div>'
+    '<div class="fi-heading">✦ Forex <span class="fi-gradient">Intelligence</span></div>'
+    '<div class="fi-subheading">Market research terminal · Technical analytics · '
+    'Forward evidence tracking</div></div>'
+    f'<div class="fi-chips"><span class="fi-chip">{APP_VERSION}</span>'
+    '<span class="fi-chip fi-chip-live">● Research mode · Delayed data</span>'
+    '</div></div>',
+    unsafe_allow_html=True,
 )
 
 
@@ -978,13 +1100,21 @@ st.caption(
 if page == "Trading Terminal":
 
     if tf == "1d" and symbol.endswith("=X"):
-        st.warning(
-            "Yahoo Finance daily FX Open/Close candles failed our data-quality "
-            "audit. Candlestick-body and engulfing strategies may have very "
-            "few reliable signals. Select the V8.4 Close Trend + Pullback "
-            "research strategy for a Close-based candidate. The BUY/SELL "
-            "output remains unvalidated."
+        st.markdown(
+            '<div class="fi-mini-banner">⚠ <strong>FX data quality:</strong> '
+            'Yahoo daily Open/Close candles failed a consistency audit. '
+            'Close-based signals avoid relying on these bodies. '
+            'All signals remain experimental and unvalidated.</div>',
+            unsafe_allow_html=True,
         )
+    st.markdown(
+        '<div class="fi-chips" style="margin-bottom:15px">'
+        f'<span class="fi-chip">◉ {label}</span>'
+        f'<span class="fi-chip">◷ {tf} timeframe</span>'
+        f'<span class="fi-chip">◇ {MODEL_LABELS[MODEL_VERSION]}</span>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
 
     left, center, right = st.columns(
         [1.05, 1.8, 1.1],
@@ -1076,21 +1206,14 @@ if page == "Trading Terminal":
         )
 
         st.markdown(
-            '<div class="terminal-card">'
-            '<div class="card-label" style="text-align:center">'
-            "SELECTED INSTRUMENT"
-            "</div>"
-            '<div class="card-title" '
-            'style="text-align:center;font-size:1.7rem">'
-            f"{label}</div>"
-            '<div class="signal-panel">'
-            f'<div class="signal-big {color_class}">'
-            f"{signal}</div>"
-            f'<div class="signal-caption">{signal_message}</div>'
-            "</div>"
-            '<div class="signal-caption">'
-            f"Last completed candle used: {last_bar_time}"
-            "</div></div>",
+            '<div class="signal-hero">'
+            '<div class="signal-hero-kicker">CURRENT RESEARCH SIGNAL</div>'
+            f'<div class="signal-hero-name">{label}</div>'
+            f'<div class="signal-orb {color_class}">{signal}</div>'
+            f'<div class="signal-hero-desc">{signal_message}</div>'
+            f'<div class="signal-hero-meta">Based on completed candle · '
+            f'{last_bar_time}</div>'
+            '</div>',
             unsafe_allow_html=True,
         )
 
