@@ -764,10 +764,15 @@ MODEL_VERSION = next(
     if name == strategy_label
 )
 
-st.sidebar.warning(
-    "Research model — NOT VALIDATED. BUY/SELL is a rules-based "
-    "historical-candle signal, not a reliable probability estimate "
-    "or a recommendation to trade."
+st.sidebar.markdown(
+    '<div style="background:#17263a;border:1px solid #b69a58;'
+    'border-radius:12px;padding:12px 14px;line-height:1.5;'
+    'color:#f5e7c3;font-size:0.9rem">'
+    '<strong style="color:#ffdf91">RESEARCH ONLY · NOT VALIDATED</strong>'
+    '<p style="margin:6px 0 0;color:#edf2fc">'
+    'BUY/SELL is a rules-based candle signal, not a verified '
+    'forecast probability or a trading recommendation.</p></div>',
+    unsafe_allow_html=True,
 )
 st.sidebar.caption(
     "V7.1 research release · shared completed-candle signals · "
@@ -901,7 +906,7 @@ atr = true_range.ewm(
 ).mean()
 
 atr_pct = (
-    100 * float(atr.iloc[-1]) / float(last.Close)
+    100 * float(atr.iloc[terminal_bar_index]) / float(last.Close)
 )
 
 
@@ -1067,8 +1072,8 @@ if page == "Trading Terminal":
             st.metric(
                 "RSI (14)",
                 (
-                    f"{float(rsi.iloc[-1]):.1f}"
-                    if np.isfinite(rsi.iloc[-1])
+                    f"{float(rsi.iloc[terminal_bar_index]):.1f}"
+                    if np.isfinite(rsi.iloc[terminal_bar_index])
                     else "—"
                 ),
             )
@@ -1082,12 +1087,13 @@ if page == "Trading Terminal":
             )
 
             st.metric(
-                "MACD",
+                "MACD vs signal",
                 (
-                    "Above signal"
-                    if macd.iloc[-1] > macd_sig.iloc[-1]
-                    else "Below signal"
+                    "Above" if macd.iloc[terminal_bar_index]
+                    > macd_sig.iloc[terminal_bar_index] else "Below"
                 ),
+                help="Comparison on the same completed candle used for the "
+                     "selected BUY/SELL/WAIT signal.",
             )
 
         st.markdown(
@@ -1317,8 +1323,8 @@ elif page == "Market Analysis":
     m3.metric(
         "RSI (14)",
         (
-            f"{float(rsi.iloc[-1]):.1f}"
-            if np.isfinite(rsi.iloc[-1])
+            f"{float(rsi.iloc[terminal_bar_index]):.1f}"
+            if np.isfinite(rsi.iloc[terminal_bar_index])
             else "—"
         ),
     )
@@ -1442,8 +1448,8 @@ elif page == "Market Analysis":
             )
 
             st.markdown(
-                f"**RSI:** {float(rsi.iloc[-1]):.1f}"
-                if np.isfinite(rsi.iloc[-1])
+                f"**RSI:** {float(rsi.iloc[terminal_bar_index]):.1f}"
+                if np.isfinite(rsi.iloc[terminal_bar_index])
                 else "**RSI:** unavailable"
             )
 
@@ -1452,7 +1458,7 @@ elif page == "Market Analysis":
                 "**MACD:** "
                 + (
                     "Above its signal line"
-                    if macd.iloc[-1] > macd_sig.iloc[-1]
+                    if macd.iloc[terminal_bar_index] > macd_sig.iloc[terminal_bar_index]
                     else "Below its signal line"
                 )
             )
