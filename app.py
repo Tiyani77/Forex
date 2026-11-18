@@ -11,6 +11,7 @@ from signal_models import (
     MODEL_LABELS, momentum_signals,
     apply_research_model,
 )
+from forecast_engine import latest_signal, model_flags
 
 from datetime import datetime, timezone
 from prediction_store import (
@@ -18,6 +19,7 @@ from prediction_store import (
     save_prediction,
     list_predictions,
     list_predictions_paginated,
+    prediction_exists,
     complete_prediction,
 )
 from prediction_tracking import tracking_overview
@@ -34,7 +36,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-APP_VERSION = "V6.3 Forecast Reliability"
+APP_VERSION = "V7.0 Integrated Research"
 MODEL_VERSION = BASELINE_VERSION
 
 
@@ -817,17 +819,19 @@ if len(raw) < 60:
     st.stop()
 
 df = indicators(raw)
-if MODEL_VERSION != BASELINE_VERSION:
-    df["Buy"], df["Sell"] = apply_research_model(df, MODEL_VERSION)
+df["Buy"], df["Sell"] = model_flags(df, MODEL_VERSION)
 trades = backtest(df, horizon)
 result = stats(trades)
 
-# Display signals from a completed candle, not an in-progress quote.
-terminal_bar_index = -2
-if tf == "1d":
-    latest_open_utc = pd.to_datetime(df.index[-1], utc=True)
-    if latest_open_utc + pd.Timedelta(days=1) <= pd.Timestamp.now(tz="UTC"):
-        terminal_bar_index = -1
+# Terminal, manual save and collector share the exact completed-bar
+# selector and versioned model dispatcher. Current forming bars excluded.
+terminal_decision = latest_signal(
+    raw, MODEL_VERSION, timeframe=tf, minimum_bars=60
+)
+if terminal_decision is None:
+    st.warning("Not enough completed candles for this research strategy.")
+    st.stop()
+terminal_bar_index = terminal_decision["position"]
 last = df.iloc[terminal_bar_index]
 last_bar_time = df.index[terminal_bar_index]
 
@@ -837,11 +841,7 @@ label = (
     else market
 )
 
-signal = (
-    "BUY" if bool(last.Buy)
-    else "SELL" if bool(last.Sell)
-    else "WAIT"
-)
+signal = terminal_decision["signal"]
 
 trend = (
     "Bullish"
@@ -2536,27 +2536,12 @@ elif page == "Prediction History":
             "### Save a new forward prediction"
         )
 
-        # For daily predictions use the latest completed candle, matching
-        # automatic collection. Other timeframes retain the conservative
-        # penultimate-candle convention.
-        anchor_index = -2
-        if tf == "1d":
-            latest_start = pd.to_datetime(df.index[-1], utc=True)
-            if latest_start + pd.Timedelta(days=1) <= pd.Timestamp.now(tz="UTC"):
-                anchor_index = -1
-        anchor = df.iloc[anchor_index]
-        anchor_time = pd.Timestamp(df.index[anchor_index])
-
-        if anchor_time.tzinfo is None:
-            anchor_time = anchor_time.tz_localize("UTC")
-        else:
-            anchor_time = anchor_time.tz_convert("UTC")
-
-        anchor_signal = (
-            "BUY" if bool(anchor.Buy)
-            else "SELL" if bool(anchor.Sell)
-            else "WAIT"
+        # Use the exact same completed bar and signal as the trading terminal.
+        anchor = df.iloc[terminal_bar_index]
+        anchor_time = pd.to_datetime(
+            terminal_decision["signal_bar_at"], utc=True
         )
+        anchor_signal = terminal_decision["signal"]
 
         st.write(
             f"**{label}** · {tf} · {anchor_signal} · {strategy_label} · "
@@ -2594,13 +2579,21 @@ elif page == "Prediction History":
                     "horizon_bars": int(prediction_horizon),
                 }
 
-                save_prediction(payload)
-
-                st.success(
-                    "Prediction saved. "
-                    "GitHub Actions will evaluate it "
-                    "when future candle data is available."
-                )
+                if prediction_exists(
+                    symbol, tf, anchor_time.isoformat(),
+                    MODEL_VERSION, int(prediction_horizon)
+                ):
+                    st.info(
+                        "An identical forecast already exists for this "
+                        "market, timeframe, completed candle, strategy "
+                        "and holding horizon. Nothing was saved."
+                    )
+                else:
+                    save_prediction(payload)
+                    st.success(
+                        "Prediction saved. GitHub Actions will evaluate it "
+                        "when sufficient completed future candles arrive."
+                    )
 
             except Exception as exc:
                 st.error(
